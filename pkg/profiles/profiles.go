@@ -18,28 +18,28 @@ var profiles = map[string][]uint16{
 	},
 	"web": {
 		// Common web service ports
-		80, 443,      // HTTP/HTTPS
-		8080, 8443,   // Alternative HTTP/HTTPS
-		3000, 3001,   // Node.js common
-		4200, 4443,   // Angular dev
-		5000, 5001,   // Flask/ASP.NET
-		7000, 7001,   // Cassandra web
-		8000, 8001,   // Django/HTTP alt
-		8081, 8082,   // Additional HTTP
-		8888, 8889,   // Jupyter/misc
-		9000, 9001,   // PHP-FPM/misc
-		9090, 9091,   // Prometheus/misc
+		80, 443, // HTTP/HTTPS
+		8080, 8443, // Alternative HTTP/HTTPS
+		3000, 3001, // Node.js common
+		4200, 4443, // Angular dev
+		5000, 5001, // Flask/ASP.NET
+		7000, 7001, // Cassandra web
+		8000, 8001, // Django/HTTP alt
+		8081, 8082, // Additional HTTP
+		8888, 8889, // Jupyter/misc
+		9000, 9001, // PHP-FPM/misc
+		9090, 9091, // Prometheus/misc
 		10000, 10001, // Webmin
 		// API and microservices
 		3003, 3004, 3005, // Microservices
 		4000, 4001, 4002, // API servers
-		5555, 5556,       // API gateways
+		5555, 5556, // API gateways
 		// Proxy and cache
 		3128, 8123, // Squid proxy
-		11211,      // Memcached
+		11211, // Memcached
 		// WebSocket and streaming
 		8081, 8082, 8083, // WebSocket
-		1935, 8554,       // RTMP/RTSP
+		1935, 8554, // RTMP/RTSP
 	},
 	"database": {
 		// Relational databases
@@ -47,29 +47,29 @@ var profiles = map[string][]uint16{
 		5432,       // PostgreSQL
 		1433, 1434, // MSSQL
 		1521, 1830, // Oracle
-		50000,      // DB2
-		
+		50000, // DB2
+
 		// NoSQL databases
 		27017, 27018, 27019, // MongoDB
-		6379, 6380,          // Redis
-		9042, 9160,          // Cassandra
-		5984, 6984,          // CouchDB
-		8086, 8088,          // InfluxDB
-		7000, 7001,          // Cassandra inter-node
-		
+		6379, 6380, // Redis
+		9042, 9160, // Cassandra
+		5984, 6984, // CouchDB
+		8086, 8088, // InfluxDB
+		7000, 7001, // Cassandra inter-node
+
 		// Search and analytics
 		9200, 9300, // Elasticsearch
-		8983,       // Solr
-		
+		8983, // Solr
+
 		// Message queues
 		5672, 15672, // RabbitMQ
-		9092,        // Kafka
-		11211,       // Memcached
-		2181,        // Zookeeper
-		
+		9092,  // Kafka
+		11211, // Memcached
+		2181,  // Zookeeper
+
 		// Cache
 		11211, 11212, // Memcached
-		8091, 8092,   // Couchbase
+		8091, 8092, // Couchbase
 	},
 	"full": {
 		// This is handled specially - returns 1-65535
@@ -81,12 +81,12 @@ func GetProfile(name string) []uint16 {
 	if name == "full" {
 		// Generate 1-65535
 		ports := make([]uint16, 65535)
-		for i := 0; i < 65535; i++ {
-			ports[i] = uint16(i) + 1
+		for i := uint16(0); i < 65535; i++ {
+			ports[i] = i + 1
 		}
 		return ports
 	}
-	
+
 	return profiles[name]
 }
 
