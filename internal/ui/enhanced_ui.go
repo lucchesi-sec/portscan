@@ -50,11 +50,10 @@ type EnhancedUI struct {
 	progressTrack *ProgressTracker
 	
 	// State
-	scanning      bool
-	isPaused      bool
-	showHelp      bool
-	selectedIndex int
-	totalPorts    int
+	scanning   bool
+	isPaused   bool
+	showHelp   bool
+	totalPorts int
 	
 	// Stats
 	openCount     int

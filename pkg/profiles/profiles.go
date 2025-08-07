@@ -81,8 +81,8 @@ func GetProfile(name string) []uint16 {
 	if name == "full" {
 		// Generate 1-65535
 		ports := make([]uint16, 65535)
-		for i := uint16(1); i <= 65535; i++ {
-			ports[i-1] = i
+		for i := 0; i < 65535; i++ {
+			ports[i] = uint16(i + 1)
 		}
 		return ports
 	}

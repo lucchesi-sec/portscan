@@ -45,7 +45,7 @@ func runConfigInit(cmd *cobra.Command, args []string) error {
 	configPath := filepath.Join(homeDir, ".portscan.yaml")
 
 	// Check if config already exists
-	if _, err := os.Stat(configPath); err == nil {
+	if _, statErr := os.Stat(configPath); statErr == nil {
 		fmt.Printf("Configuration file already exists at: %s\n", configPath)
 		fmt.Println("To overwrite, please delete the existing file first.")
 		return nil
@@ -103,7 +103,7 @@ verbose: false          # Enable verbose debug output
 }
 
 func runConfigShow(cmd *cobra.Command, args []string) error {
-	fmt.Println("=== Current Configuration ===\n")
+	fmt.Println("=== Current Configuration ===")
 
 	// Show config file location
 	configFile := viper.ConfigFileUsed()

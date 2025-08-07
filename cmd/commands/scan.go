@@ -126,11 +126,11 @@ func runScan(cmd *cobra.Command, args []string) error {
 		var builder strings.Builder
 		buf := make([]byte, 1024)
 		for {
-			n, err := os.Stdin.Read(buf)
+			n, readErr := os.Stdin.Read(buf)
 			if n > 0 {
 				builder.Write(buf[:n])
 			}
-			if err != nil {
+			if readErr != nil {
 				break
 			}
 		}
