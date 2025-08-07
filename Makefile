@@ -130,7 +130,7 @@ dev-setup:
 	@$(GOCMD) install golang.org/x/tools/cmd/goimports@latest
 	@$(GOCMD) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	@$(GOCMD) install golang.org/x/vuln/cmd/govulncheck@latest
-	@$(GOCMD) install github.com/securecodewarrior/github-action-add-sarif@latest
+	@$(GOCMD) install github.com/securego/gosec/v2/cmd/gosec@latest
 	@$(GOCMD) install github.com/goreleaser/goreleaser@latest
 	@echo "✅ Development environment ready"
 

@@ -16,7 +16,7 @@ type CSVExporter struct {
 func NewCSVExporter(w io.Writer) *CSVExporter {
 	csvWriter := csv.NewWriter(w)
 	// Write header
-	csvWriter.Write([]string{"Host", "Port", "State", "Banner", "Latency(ms)"})
+	_ = csvWriter.Write([]string{"Host", "Port", "State", "Banner", "Latency(ms)"})
 	return &CSVExporter{
 		writer:    w,
 		csvWriter: csvWriter,
@@ -33,7 +33,7 @@ func (e *CSVExporter) Export(results <-chan interface{}) {
 				r.Banner,
 				fmt.Sprintf("%d", r.Duration.Milliseconds()),
 			}
-			e.csvWriter.Write(record)
+			_ = e.csvWriter.Write(record)
 		}
 	}
 }

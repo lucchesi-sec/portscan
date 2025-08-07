@@ -28,7 +28,7 @@ func (e *JSONExporter) Export(results <-chan interface{}) {
 		}
 	}
 
-	e.encoder.Encode(allResults)
+	_ = e.encoder.Encode(allResults)
 }
 
 func (e *JSONExporter) Close() error {

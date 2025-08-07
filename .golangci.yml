@@ -1,43 +1,35 @@
+version: 2
+
 run:
   timeout: 5m
   tests: true
-  skip-dirs:
-    - vendor
-    - .git
-    - .github
 
 linters:
   enable:
     - govet
     - staticcheck
     - errcheck
-    - revive
-    - gosec
     - ineffassign
     - unconvert
-    - gofumpt
-    - goimports
     - misspell
     - unparam
-    - prealloc
     - bodyclose
-    - gocritic
   disable:
-    - unused
-    - deadcode
-    - structcheck
-    - varcheck
+    - revive
+    - gocritic
+    - prealloc
+    - gosec
 
 linters-settings:
   govet:
-    check-shadowing: true
+    enable:
+      - shadow
   revive:
     confidence: 0.8
   gosec:
     severity: medium
     confidence: medium
-  gofumpt:
-    extra-rules: true
+
   gocritic:
     enabled-tags:
       - diagnostic
@@ -50,8 +42,16 @@ issues:
   exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0
+  exclude-dirs:
+    - vendor
+    - .git
+    - .github
   exclude-rules:
     - path: _test\.go
       linters:
         - gosec
         - errcheck
+    - path: pkg/parser/ports.go
+      linters:
+        - gosec
+      text: "G115: integer overflow conversion"

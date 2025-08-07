@@ -8,13 +8,13 @@ import (
 )
 
 type Config struct {
-	Rate       int      `mapstructure:"rate" validate:"min=1,max=100000"`
-	Ports      string   `mapstructure:"ports"`
-	TimeoutMs  int      `mapstructure:"timeout_ms" validate:"min=1,max=10000"`
-	Workers    int      `mapstructure:"workers" validate:"min=1,max=1000"`
-	Output     string   `mapstructure:"output" validate:"omitempty,oneof=json csv prometheus"`
-	Banners    bool     `mapstructure:"banners"`
-	UI         UIConfig `mapstructure:"ui"`
+	Rate      int      `mapstructure:"rate" validate:"min=1,max=100000"`
+	Ports     string   `mapstructure:"ports"`
+	TimeoutMs int      `mapstructure:"timeout_ms" validate:"min=1,max=10000"`
+	Workers   int      `mapstructure:"workers" validate:"min=1,max=1000"`
+	Output    string   `mapstructure:"output" validate:"omitempty,oneof=json csv prometheus"`
+	Banners   bool     `mapstructure:"banners"`
+	UI        UIConfig `mapstructure:"ui"`
 }
 
 type UIConfig struct {

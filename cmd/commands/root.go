@@ -36,12 +36,12 @@ func init() {
 
 	rootCmd.PersistentFlags().Bool("profile", false, "enable pprof profiling")
 	rootCmd.PersistentFlags().Bool("trace", false, "enable execution tracing")
-	rootCmd.PersistentFlags().MarkHidden("profile")
-	rootCmd.PersistentFlags().MarkHidden("trace")
+	_ = rootCmd.PersistentFlags().MarkHidden("profile")
+	_ = rootCmd.PersistentFlags().MarkHidden("trace")
 
-	viper.BindPFlag("quiet", rootCmd.PersistentFlags().Lookup("quiet"))
-	viper.BindPFlag("no_color", rootCmd.PersistentFlags().Lookup("no-color"))
-	viper.BindPFlag("log_json", rootCmd.PersistentFlags().Lookup("log-json"))
+	_ = viper.BindPFlag("quiet", rootCmd.PersistentFlags().Lookup("quiet"))
+	_ = viper.BindPFlag("no_color", rootCmd.PersistentFlags().Lookup("no-color"))
+	_ = viper.BindPFlag("log_json", rootCmd.PersistentFlags().Lookup("log-json"))
 }
 
 func initConfig() {

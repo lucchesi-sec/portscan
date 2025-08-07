@@ -36,58 +36,58 @@ type EnhancedModel struct {
 	theme      theme.Theme
 	results    []core.ResultEvent
 	resultChan <-chan interface{}
-	
+
 	// View state
-	viewMode   ViewMode
-	width      int
-	height     int
-	
+	viewMode ViewMode
+	width    int
+	height   int
+
 	// Widgets
-	table      table.Model
-	list       list.Model
-	viewport   viewport.Model
-	progress   progress.Model
-	spinner    spinner.Model
-	stopwatch  stopwatch.Model
+	table       table.Model
+	list        list.Model
+	viewport    viewport.Model
+	progress    progress.Model
+	spinner     spinner.Model
+	stopwatch   stopwatch.Model
 	filterInput textinput.Model
-	help       help.Model
-	keys       keyMap
-	
+	help        help.Model
+	keys        keyMap
+
 	// State
-	scanning   bool
-	filtering  bool
-	filterText string
+	scanning     bool
+	filtering    bool
+	filterText   string
 	selectedPort *core.ResultEvent
-	logs       []string
-	stats      ScanStats
+	logs         []string
+	stats        ScanStats
 }
 
 type ScanStats struct {
-	TotalPorts    int
-	OpenPorts     int
-	ClosedPorts   int
-	FilteredPorts int
-	StartTime     time.Time
-	EndTime       time.Time
+	TotalPorts     int
+	OpenPorts      int
+	ClosedPorts    int
+	FilteredPorts  int
+	StartTime      time.Time
+	EndTime        time.Time
 	AverageLatency time.Duration
-	FastestPort   uint16
-	SlowestPort   uint16
+	FastestPort    uint16
+	SlowestPort    uint16
 }
 
 type keyMap struct {
-	Up       key.Binding
-	Down     key.Binding
-	Left     key.Binding
-	Right    key.Binding
-	Enter    key.Binding
-	Tab      key.Binding
-	Filter   key.Binding
-	Details  key.Binding
-	Stats    key.Binding
-	Logs     key.Binding
-	Export   key.Binding
-	Help     key.Binding
-	Quit     key.Binding
+	Up      key.Binding
+	Down    key.Binding
+	Left    key.Binding
+	Right   key.Binding
+	Enter   key.Binding
+	Tab     key.Binding
+	Filter  key.Binding
+	Details key.Binding
+	Stats   key.Binding
+	Logs    key.Binding
+	Export  key.Binding
+	Help    key.Binding
+	Quit    key.Binding
 }
 
 // ShortHelp returns keybindings to be shown in the mini help view
@@ -163,7 +163,7 @@ var keys = keyMap{
 func NewEnhanced(cfg *config.Config, results <-chan interface{}) *EnhancedModel {
 	// Get theme
 	t := theme.GetTheme(cfg.UI.Theme)
-	
+
 	// Initialize table
 	columns := []table.Column{
 		{Title: "Port", Width: 8},
@@ -172,13 +172,13 @@ func NewEnhanced(cfg *config.Config, results <-chan interface{}) *EnhancedModel 
 		{Title: "Banner", Width: 30},
 		{Title: "Latency", Width: 10},
 	}
-	
+
 	tbl := table.New(
 		table.WithColumns(columns),
 		table.WithFocused(true),
 		table.WithHeight(10),
 	)
-	
+
 	// Table styling
 	s := table.DefaultStyles()
 	s.Header = s.Header.
@@ -191,7 +191,7 @@ func NewEnhanced(cfg *config.Config, results <-chan interface{}) *EnhancedModel 
 		Background(t.Primary).
 		Bold(false)
 	tbl.SetStyles(s)
-	
+
 	// Initialize list for filtered results
 	items := []list.Item{}
 	l := list.New(items, list.NewDefaultDelegate(), 0, 0)
@@ -199,35 +199,35 @@ func NewEnhanced(cfg *config.Config, results <-chan interface{}) *EnhancedModel 
 	l.SetShowStatusBar(true)
 	l.SetFilteringEnabled(true)
 	l.Styles.Title = l.Styles.Title.Foreground(t.Primary).Bold(true)
-	
+
 	// Initialize viewport for details/logs
 	vp := viewport.New(50, 10)
 	vp.Style = lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(t.Primary)
-	
+
 	// Initialize progress bar
 	prog := progress.New(progress.WithDefaultGradient())
-	
+
 	// Initialize spinner
 	sp := spinner.New()
 	sp.Spinner = spinner.Points
 	sp.Style = lipgloss.NewStyle().Foreground(t.Primary)
-	
+
 	// Initialize stopwatch
 	sw := stopwatch.NewWithInterval(time.Second)
-	
+
 	// Initialize filter input
 	fi := textinput.New()
 	fi.Placeholder = "Filter ports..."
 	fi.CharLimit = 50
 	fi.Width = 30
 	fi.Prompt = "🔍 "
-	
+
 	// Initialize help
 	h := help.New()
 	h.ShowAll = false
-	
+
 	return &EnhancedModel{
 		config:      cfg,
 		theme:       t,
@@ -261,13 +261,13 @@ func (m *EnhancedModel) Init() tea.Cmd {
 
 func (m *EnhancedModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
-	
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		m.updateLayout()
-		
+
 	case tea.KeyMsg:
 		if m.filtering {
 			switch msg.String() {
@@ -308,37 +308,37 @@ func (m *EnhancedModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selectCurrentItem()
 			}
 		}
-		
+
 	case scanResultMsg:
 		m.handleScanResult(msg.result)
-		
+
 	case scanProgressMsg:
 		cmd := m.progress.SetPercent(float64(msg.progress.Completed) / float64(msg.progress.Total))
 		cmds = append(cmds, cmd)
-		
+
 	case scanCompleteMsg:
 		m.scanning = false
 		m.stats.EndTime = time.Now()
 		m.calculateStats()
-		
+
 	case spinner.TickMsg:
 		if m.scanning {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			cmds = append(cmds, cmd)
 		}
-		
+
 	case stopwatch.TickMsg:
 		var cmd tea.Cmd
 		m.stopwatch, cmd = m.stopwatch.Update(msg)
 		cmds = append(cmds, cmd)
-		
+
 	case progress.FrameMsg:
 		progressModel, cmd := m.progress.Update(msg)
 		m.progress = progressModel.(progress.Model)
 		cmds = append(cmds, cmd)
 	}
-	
+
 	// Update sub-components based on view
 	switch m.viewMode {
 	case ViewTable:
@@ -350,11 +350,11 @@ func (m *EnhancedModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport, cmd = m.viewport.Update(msg)
 		cmds = append(cmds, cmd)
 	}
-	
+
 	if m.scanning {
 		cmds = append(cmds, m.listenForResults())
 	}
-	
+
 	return m, tea.Batch(cmds...)
 }
 
@@ -362,36 +362,36 @@ func (m *EnhancedModel) View() string {
 	if m.width == 0 || m.height == 0 {
 		return "Initializing..."
 	}
-	
+
 	var sections []string
-	
+
 	// Header
 	header := m.renderHeader()
 	sections = append(sections, header)
-	
+
 	// Progress bar (if scanning)
 	if m.scanning {
 		progressBar := m.renderProgressBar()
 		sections = append(sections, progressBar)
 	}
-	
+
 	// Filter input (if filtering)
 	if m.filtering {
 		sections = append(sections, m.filterInput.View())
 	}
-	
+
 	// Main content based on view mode
 	mainContent := m.renderMainContent()
 	sections = append(sections, mainContent)
-	
+
 	// Status bar
 	statusBar := m.renderStatusBar()
 	sections = append(sections, statusBar)
-	
+
 	// Help
 	helpView := m.help.View(m.keys)
 	sections = append(sections, helpView)
-	
+
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
 }
 
@@ -400,26 +400,26 @@ func (m *EnhancedModel) renderHeader() string {
 		Bold(true).
 		Foreground(m.theme.Primary).
 		MarginBottom(1)
-	
+
 	title := "🔍 Port Scanner"
 	if m.scanning {
 		title += fmt.Sprintf(" %s %s", m.spinner.View(), "Scanning...")
 	} else {
 		title += " ✓ Complete"
 	}
-	
+
 	timer := m.stopwatch.View()
-	
+
 	headerLeft := titleStyle.Render(title)
 	headerRight := lipgloss.NewStyle().
 		Foreground(m.theme.Muted).
 		Render(timer)
-	
+
 	gap := m.width - lipgloss.Width(headerLeft) - lipgloss.Width(headerRight)
 	if gap < 0 {
 		gap = 0
 	}
-	
+
 	return headerLeft + strings.Repeat(" ", gap) + headerRight
 }
 
@@ -447,16 +447,16 @@ func (m *EnhancedModel) renderStatsView() string {
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(m.theme.Primary).
 		Padding(1, 2)
-	
+
 	stats := fmt.Sprintf(
 		"📊 Scan Statistics\n\n"+
-		"Total Ports: %d\n"+
-		"Open: %d\n"+
-		"Closed: %d\n"+
-		"Filtered: %d\n"+
-		"Average Latency: %v\n"+
-		"Fastest Port: %d\n"+
-		"Slowest Port: %d\n",
+			"Total Ports: %d\n"+
+			"Open: %d\n"+
+			"Closed: %d\n"+
+			"Filtered: %d\n"+
+			"Average Latency: %v\n"+
+			"Fastest Port: %d\n"+
+			"Slowest Port: %d\n",
 		m.stats.TotalPorts,
 		m.stats.OpenPorts,
 		m.stats.ClosedPorts,
@@ -465,7 +465,7 @@ func (m *EnhancedModel) renderStatsView() string {
 		m.stats.FastestPort,
 		m.stats.SlowestPort,
 	)
-	
+
 	return statsStyle.Render(stats)
 }
 
@@ -473,13 +473,13 @@ func (m *EnhancedModel) renderStatusBar() string {
 	statusStyle := lipgloss.NewStyle().
 		Foreground(m.theme.Muted).
 		MarginTop(1)
-	
+
 	viewIndicator := fmt.Sprintf("[%s]", m.getViewName())
 	openPorts := fmt.Sprintf("Open: %d", m.stats.OpenPorts)
-	
+
 	status := fmt.Sprintf("%s | %s | Tab: switch view | ?: help",
 		viewIndicator, openPorts)
-	
+
 	return statusStyle.Render(status)
 }
 
@@ -528,7 +528,7 @@ func (m *EnhancedModel) updateTable() {
 			if len(banner) > 30 {
 				banner = banner[:27] + "..."
 			}
-			
+
 			rows = append(rows, table.Row{
 				fmt.Sprintf("%d", r.Port),
 				string(r.State),
@@ -543,7 +543,7 @@ func (m *EnhancedModel) updateTable() {
 
 func (m *EnhancedModel) updateStats(result core.ResultEvent) {
 	m.stats.TotalPorts++
-	
+
 	switch result.State {
 	case core.StateOpen:
 		m.stats.OpenPorts++
@@ -552,7 +552,7 @@ func (m *EnhancedModel) updateStats(result core.ResultEvent) {
 	case core.StateFiltered:
 		m.stats.FilteredPorts++
 	}
-	
+
 	// Update latency stats
 	if result.State == core.StateOpen {
 		if m.stats.FastestPort == 0 || result.Duration < m.stats.AverageLatency {
@@ -568,17 +568,17 @@ func (m *EnhancedModel) calculateStats() {
 	if len(m.results) == 0 {
 		return
 	}
-	
+
 	var totalLatency time.Duration
 	openCount := 0
-	
+
 	for _, r := range m.results {
 		if r.State == core.StateOpen {
 			totalLatency += r.Duration
 			openCount++
 		}
 	}
-	
+
 	if openCount > 0 {
 		m.stats.AverageLatency = totalLatency / time.Duration(openCount)
 	}
@@ -623,7 +623,7 @@ func (m *EnhancedModel) listenForResults() tea.Cmd {
 			if !ok {
 				return scanCompleteMsg{}
 			}
-			
+
 			switch r := result.(type) {
 			case core.ResultEvent:
 				return scanResultMsg{result: r}
@@ -642,4 +642,3 @@ func (m *EnhancedModel) Run() error {
 	_, err := p.Run()
 	return err
 }
-

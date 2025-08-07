@@ -38,13 +38,13 @@ func init() {
 	scanCmd.Flags().Bool("json", false, "output results as JSON")
 	scanCmd.Flags().String("ui.theme", "default", "UI theme (default, dracula, monokai)")
 
-	viper.BindPFlag("ports", scanCmd.Flags().Lookup("ports"))
-	viper.BindPFlag("rate", scanCmd.Flags().Lookup("rate"))
-	viper.BindPFlag("timeout_ms", scanCmd.Flags().Lookup("timeout"))
-	viper.BindPFlag("workers", scanCmd.Flags().Lookup("workers"))
-	viper.BindPFlag("banners", scanCmd.Flags().Lookup("banners"))
-	viper.BindPFlag("output", scanCmd.Flags().Lookup("output"))
-	viper.BindPFlag("ui.theme", scanCmd.Flags().Lookup("ui.theme"))
+	_ = viper.BindPFlag("ports", scanCmd.Flags().Lookup("ports"))
+	_ = viper.BindPFlag("rate", scanCmd.Flags().Lookup("rate"))
+	_ = viper.BindPFlag("timeout_ms", scanCmd.Flags().Lookup("timeout"))
+	_ = viper.BindPFlag("workers", scanCmd.Flags().Lookup("workers"))
+	_ = viper.BindPFlag("banners", scanCmd.Flags().Lookup("banners"))
+	_ = viper.BindPFlag("output", scanCmd.Flags().Lookup("output"))
+	_ = viper.BindPFlag("ui.theme", scanCmd.Flags().Lookup("ui.theme"))
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -103,12 +103,12 @@ func runScan(cmd *cobra.Command, args []string) error {
 		exp := exporter.NewJSONExporter(os.Stdout)
 		go exp.Export(scanner.Results())
 		scanner.ScanRange(ctx, target, ports)
-		exp.Close()
+		_ = exp.Close()
 	} else if cfg.Output == "csv" {
 		exp := exporter.NewCSVExporter(os.Stdout)
 		go exp.Export(scanner.Results())
 		scanner.ScanRange(ctx, target, ports)
-		exp.Close()
+		_ = exp.Close()
 	} else {
 		// Use Enhanced TUI
 		tui := ui.NewEnhanced(cfg, scanner.Results())
