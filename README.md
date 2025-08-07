@@ -67,18 +67,18 @@ portscan scan target.com --ports 1-65535 --rate 10000
 The TUI provides real-time visualization of scan progress:
 
 ```
-┌─ Port Scanner ─────────────────────────────────────────────────────────────┐
-│ Target: 192.168.1.0/24        Ports: 1-1024        Rate: 7500 pps          │
+┌─ Port Scanner ───────────────────────────────────────────────────────────-──┐
+│ Target: 192.168.1.0/24        Ports: 1-1024        Rate: 7500 pps           │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ Progress: ████████████████████░░░░  82% (840/1024)   ETA: 00:23            │
+│ Progress: ████████████████████░░░░  82% (840/1024)   ETA: 00:23             │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ Host           Port  State  Service    Banner                               │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ 192.168.1.1    22    open   ssh        SSH-2.0-OpenSSH_8.9p1              │
-│ 192.168.1.1    80    open   http       Apache/2.4.41 (Ubuntu)             │
-│ 192.168.1.1    443   open   https      nginx/1.18.0                       │
-│ 192.168.1.5    3306  open   mysql      5.7.34-0ubuntu0.18.04.1            │
-│ 192.168.1.10   5432  open   postgres   PostgreSQL 13.3                    │
+│ 192.168.1.1    22    open   ssh        SSH-2.0-OpenSSH_8.9p1                │
+│ 192.168.1.1    80    open   http       Apache/2.4.41 (Ubuntu)               │
+│ 192.168.1.1    443   open   https      nginx/1.18.0                         │
+│ 192.168.1.5    3306  open   mysql      5.7.34-0ubuntu0.18.04.1              │
+│ 192.168.1.10   5432  open   postgres   PostgreSQL 13.3                      │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ Stats: 5 open, 835 closed, 184 filtered  •  Memory: 12MB  •  Goroutines: 100│
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -173,7 +173,7 @@ portscan scan 192.168.1.1 --output csv > results.csv
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   CLI Parser    │───▶│  Core Scanner   │───▶│   TUI Display   │
-│  (Cobra/Viper) │    │ (Worker Pool)   │    │ (Bubble Tea)    │
+│  (Cobra/Viper)  │    │ (Worker Pool)   │    │ (Bubble Tea)    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                               │
                               ▼
@@ -350,5 +350,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 <div align="center">
-<strong>⭐ If you find this project useful, please consider giving it a star! ⭐</strong>
+<strong>⭐ If you find this project useful, please consider giving it a star ⭐</strong>
 </div>

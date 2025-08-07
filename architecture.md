@@ -213,4 +213,3 @@ goreleaser	Binary packaging & release
 
 ⸻
 
-End of architecture.md
