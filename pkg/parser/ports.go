@@ -39,10 +39,13 @@ func ParsePorts(spec string) ([]uint16, error) {
 
 			// Ensure we don't overflow when converting to uint16
 			for p := start; p <= end && p <= 65535; p++ {
-				port := uint16(p)
-				if !seen[port] {
-					ports = append(ports, port)
-					seen[port] = true
+				// Safe conversion: p is guaranteed to be in range [1, 65535] due to validation above
+				if p >= 1 && p <= 65535 {
+					port := uint16(p)
+					if !seen[port] {
+						ports = append(ports, port)
+						seen[port] = true
+					}
 				}
 			}
 		} else {
