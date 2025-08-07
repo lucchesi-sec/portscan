@@ -54,12 +54,13 @@ type EnhancedModel struct {
 	keys        keyMap
 
 	// State
-	scanning     bool
-	filtering    bool
-	filterText   string
-	selectedPort *core.ResultEvent
-	logs         []string
-	stats        ScanStats
+	scanning         bool
+	filtering        bool
+	filterText       string
+	selectedPort     *core.ResultEvent
+	logs             []string
+	stats            ScanStats
+	showOnlyOpenPorts bool // Control whether to show only open ports or all results
 }
 
 type ScanStats struct {
@@ -75,19 +76,20 @@ type ScanStats struct {
 }
 
 type keyMap struct {
-	Up      key.Binding
-	Down    key.Binding
-	Left    key.Binding
-	Right   key.Binding
-	Enter   key.Binding
-	Tab     key.Binding
-	Filter  key.Binding
-	Details key.Binding
-	Stats   key.Binding
-	Logs    key.Binding
-	Export  key.Binding
-	Help    key.Binding
-	Quit    key.Binding
+	Up         key.Binding
+	Down       key.Binding
+	Left       key.Binding
+	Right      key.Binding
+	Enter      key.Binding
+	Tab        key.Binding
+	Filter     key.Binding
+	Details    key.Binding
+	Stats      key.Binding
+	Logs       key.Binding
+	Export     key.Binding
+	Help       key.Binding
+	Quit       key.Binding
+	ToggleView key.Binding // Toggle between showing all ports and only open ports
 }
 
 // ShortHelp returns keybindings to be shown in the mini help view
@@ -99,7 +101,7 @@ func (k keyMap) ShortHelp() []key.Binding {
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.Left, k.Right},
-		{k.Enter, k.Tab, k.Filter},
+		{k.Enter, k.Tab, k.Filter, k.ToggleView},
 		{k.Details, k.Stats, k.Logs},
 		{k.Export, k.Help, k.Quit},
 	}
@@ -157,6 +159,10 @@ var keys = keyMap{
 	Quit: key.NewBinding(
 		key.WithKeys("q", "ctrl+c"),
 		key.WithHelp("q", "quit"),
+	),
+	ToggleView: key.NewBinding(
+		key.WithKeys("v"),
+		key.WithHelp("v", "toggle all/open ports"),
 	),
 }
 
@@ -229,22 +235,23 @@ func NewEnhanced(cfg *config.Config, results <-chan interface{}) *EnhancedModel 
 	h.ShowAll = false
 
 	return &EnhancedModel{
-		config:      cfg,
-		theme:       t,
-		results:     []core.ResultEvent{},
-		resultChan:  results,
-		viewMode:    ViewTable,
-		table:       tbl,
-		list:        l,
-		viewport:    vp,
-		progress:    prog,
-		spinner:     sp,
-		stopwatch:   sw,
-		filterInput: fi,
-		help:        h,
-		keys:        keys,
-		scanning:    true,
-		logs:        []string{},
+		config:           cfg,
+		theme:            t,
+		results:          []core.ResultEvent{},
+		resultChan:       results,
+		viewMode:         ViewTable,
+		table:            tbl,
+		list:             l,
+		viewport:         vp,
+		progress:         prog,
+		spinner:          sp,
+		stopwatch:        sw,
+		filterInput:      fi,
+		help:             h,
+		keys:             keys,
+		scanning:         true,
+		logs:             []string{},
+		showOnlyOpenPorts: true, // Default to showing only open ports
 		stats: ScanStats{
 			StartTime: time.Now(),
 		},
@@ -306,6 +313,9 @@ func (m *EnhancedModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.updateViewport()
 			case key.Matches(msg, m.keys.Enter):
 				m.selectCurrentItem()
+			case key.Matches(msg, m.keys.ToggleView):
+				m.showOnlyOpenPorts = !m.showOnlyOpenPorts
+				m.updateTable()
 			}
 		}
 
@@ -519,24 +529,31 @@ func (m *EnhancedModel) handleScanResult(result core.ResultEvent) {
 	m.addLog(fmt.Sprintf("Port %d: %s (%v)", result.Port, result.State, result.Duration))
 }
 
+// updateTable populates the table with scan results.
+// By default, only open ports are shown. This behavior can be changed by setting
+// m.showOnlyOpenPorts to false, in which case all scanned ports (open, closed, filtered)
+// will be displayed.
 func (m *EnhancedModel) updateTable() {
 	var rows []table.Row
 	for _, r := range m.results {
-		if r.State == core.StateOpen {
-			service := getServiceName(r.Port)
-			banner := r.Banner
-			if len(banner) > 30 {
-				banner = banner[:27] + "..."
-			}
-
-			rows = append(rows, table.Row{
-				fmt.Sprintf("%d", r.Port),
-				string(r.State),
-				service,
-				banner,
-				fmt.Sprintf("%dms", r.Duration.Milliseconds()),
-			})
+		// Filter based on configuration
+		if m.showOnlyOpenPorts && r.State != core.StateOpen {
+			continue
 		}
+		
+		service := getServiceName(r.Port)
+		banner := r.Banner
+		if len(banner) > 30 {
+			banner = banner[:27] + "..."
+		}
+
+		rows = append(rows, table.Row{
+			fmt.Sprintf("%d", r.Port),
+			string(r.State),
+			service,
+			banner,
+			fmt.Sprintf("%dms", r.Duration.Milliseconds()),
+		})
 	}
 	m.table.SetRows(rows)
 }
