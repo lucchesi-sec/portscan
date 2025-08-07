@@ -1,0 +1,57 @@
+# Binaries
+portscan
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+
+# Go workspace file
+go.work
+
+# Dependency directories
+vendor/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build directories
+dist/
+build/
+bin/
+
+# Configuration files (local)
+.portscan.yaml
+.env
+
+# Profiling data
+*.prof
+*.pprof
+cpu.prof
+mem.prof
+trace.out
+
+# Debug files
+debug.log
+*.log
+
+# Temporary files
+tmp/
+temp/
+
+# Binary in root (should be in bin/)
+/portscan

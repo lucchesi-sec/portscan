@@ -1,0 +1,93 @@
+project_name: portscan
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - id: portscan
+    main: ./cmd/main.go
+    binary: portscan
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/lucchesi-sec/portscan/cmd/commands.version={{.Version}}
+      - -X github.com/lucchesi-sec/portscan/cmd/commands.commit={{.Commit}}
+      - -X github.com/lucchesi-sec/portscan/cmd/commands.buildDate={{.Date}}
+
+archives:
+  - id: portscan
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+  groups:
+    - title: Features
+      regexp: "^feat"
+      order: 0
+    - title: Bug Fixes
+      regexp: "^fix"
+      order: 1
+    - title: Performance
+      regexp: "^perf"
+      order: 2
+
+release:
+  github:
+    owner: lucchesi-sec
+    name: portscan
+  draft: false
+  prerelease: auto
+
+brews:
+  - repository:
+      owner: lucchesi-sec
+      name: homebrew-tap
+    folder: Formula
+    homepage: https://github.com/lucchesi-sec/portscan
+    description: High-performance TUI port scanner
+    license: MIT
+    test: |
+      system "#{bin}/portscan", "version"
+
+dockers:
+  - image_templates:
+      - "ghcr.io/lucchesi-sec/portscan:{{ .Tag }}"
+      - "ghcr.io/lucchesi-sec/portscan:latest"
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+
+sboms:
+  - artifacts: archive

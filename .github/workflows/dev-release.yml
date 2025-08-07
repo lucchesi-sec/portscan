@@ -1,0 +1,59 @@
+name: Development Release
+
+on:
+  workflow_dispatch:  # Manual trigger
+  push:
+    branches: [ main ]
+    paths:
+      - 'cmd/**'
+      - 'internal/**'
+      - 'pkg/**'
+      - 'go.mod'
+      - 'go.sum'
+
+permissions:
+  contents: write
+
+jobs:
+  dev-release:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          
+      - name: Run quick checks
+        run: make quick
+        
+      - name: Build all platforms
+        run: make build-all
+        
+      - name: Get commit info
+        id: commit
+        run: |
+          echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "date=$(date -u +%Y%m%d)" >> $GITHUB_OUTPUT
+          
+      - name: Create development release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: dev-${{ steps.commit.outputs.date }}-${{ steps.commit.outputs.sha }}
+          name: Development Build ${{ steps.commit.outputs.sha }}
+          body: |
+            🚧 **Development Build** - Not for production use
+            
+            **Commit**: ${{ github.sha }}
+            **Built**: ${{ steps.commit.outputs.date }}
+            
+            This is an automated build from the main branch for testing purposes.
+            
+          prerelease: true
+          files: |
+            bin/portscan-*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
