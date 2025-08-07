@@ -128,7 +128,7 @@ dev-setup:
 	@echo "Installing development tools..."
 	@$(GOCMD) install mvdan.cc/gofumpt@latest
 	@$(GOCMD) install golang.org/x/tools/cmd/goimports@latest
-	@$(GOCMD) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $$(go env GOPATH)/bin v2.2.2
 	@$(GOCMD) install golang.org/x/vuln/cmd/govulncheck@latest
 	@$(GOCMD) install github.com/securego/gosec/v2/cmd/gosec@latest
 	@$(GOCMD) install github.com/goreleaser/goreleaser@latest

@@ -82,7 +82,7 @@ func GetProfile(name string) []uint16 {
 		// Generate 1-65535
 		ports := make([]uint16, 65535)
 		for i := 0; i < 65535; i++ {
-			ports[i] = uint16(i + 1)
+			ports[i] = uint16(i) + 1
 		}
 		return ports
 	}

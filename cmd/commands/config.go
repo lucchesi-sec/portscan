@@ -90,7 +90,7 @@ verbose: false          # Enable verbose debug output
 `
 
 	// Write config file
-	err = os.WriteFile(configPath, []byte(defaultConfig), 0644)
+	err = os.WriteFile(configPath, []byte(defaultConfig), 0600)
 	if err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
