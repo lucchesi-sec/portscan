@@ -43,9 +43,10 @@ jobs:
         run: go test -v -race ./...
         
       - name: Run benchmarks
+        shell: bash
         run: |
           if [ -f "./internal/core/"*_test.go ]; then
-            go test -bench=. ./internal/core -run=^$$
+            go test -bench=. ./internal/core -run=^$
           else
             echo "No test files found in internal/core, skipping benchmarks"
           fi

@@ -37,10 +37,12 @@ func ParsePorts(spec string) ([]uint16, error) {
 				return nil, fmt.Errorf("invalid port range: start > end in %s", part)
 			}
 
-			for p := start; p <= end; p++ {
-				if !seen[uint16(p)] {
-					ports = append(ports, uint16(p))
-					seen[uint16(p)] = true
+			// Ensure we don't overflow when converting to uint16
+			for p := start; p <= end && p <= 65535; p++ {
+				port := uint16(p)
+				if !seen[port] {
+					ports = append(ports, port)
+					seen[port] = true
 				}
 			}
 		} else {
