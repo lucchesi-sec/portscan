@@ -3,6 +3,8 @@ package commands
 import (
 	"context"
 	"fmt"
+	"io"
+	"net"
 	"os"
 	"os/signal"
 	"runtime"
@@ -71,7 +73,7 @@ func init() {
 	scanCmd.Flags().Bool("json", false, "output results as JSON")
 	scanCmd.Flags().Bool("json-array", false, "output JSON as a single array instead of NDJSON stream")
 	scanCmd.Flags().Bool("json-object", false, "output a single JSON object with scan_info and results[]")
-	scanCmd.Flags().Bool("quiet", false, "only show open ports")
+	scanCmd.Flags().Bool("only-open", false, "show only open ports in UI/table outputs")
 
 	// UI flags
 	scanCmd.Flags().String("ui.theme", "default", "UI theme (default, dracula, monokai)")
@@ -95,6 +97,7 @@ func init() {
 	_ = viper.BindPFlag("ui.theme", scanCmd.Flags().Lookup("ui.theme"))
 	_ = viper.BindPFlag("dry_run", scanCmd.Flags().Lookup("dry-run"))
 	_ = viper.BindPFlag("verbose", scanCmd.Flags().Lookup("verbose"))
+	_ = viper.BindPFlag("only_open", scanCmd.Flags().Lookup("only-open"))
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -128,19 +131,19 @@ func runScan(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		target = args[0]
 	} else if viper.GetBool("stdin") {
-		// Read from stdin
-		var builder strings.Builder
-		buf := make([]byte, 1024)
-		for {
-			n, readErr := os.Stdin.Read(buf)
-			if n > 0 {
-				builder.Write(buf[:n])
-			}
-			if readErr != nil {
-				break
-			}
+		// Read from stdin and select the first non-empty token (line or whitespace separated)
+		data, _ := io.ReadAll(os.Stdin)
+		text := strings.TrimSpace(string(data))
+		if text == "" {
+			return errors.NoTargetError()
 		}
-		target = strings.TrimSpace(builder.String())
+		// Split by any whitespace/newlines
+		fields := strings.Fields(text)
+		if len(fields) == 0 {
+			return errors.NoTargetError()
+		}
+		target = fields[0]
+		// TODO: Support multi-target stdin and CIDR expansion with a global scanner
 	} else {
 		return errors.NoTargetError()
 	}
@@ -211,7 +214,8 @@ func runScan(cmd *cobra.Command, args []string) error {
 		_ = exp.Close()
 	} else {
 		// Use Enhanced TUI
-		tui := ui.NewEnhancedUI(cfg, len(ports), scanner.Results())
+		onlyOpen := viper.GetBool("only_open")
+		tui := ui.NewEnhancedUI(cfg, len(ports), scanner.Results(), onlyOpen)
 		go scanner.ScanRange(ctx, target, ports)
 		return tui.Run()
 	}
@@ -286,12 +290,73 @@ func getOptimalWorkerCount() int {
 }
 
 func validateTarget(target string) error {
-	// Basic validation - just check if it's not empty
-	// More comprehensive validation can be added later
+	// Check for empty string
 	if target == "" {
 		return fmt.Errorf("empty target")
 	}
-	return nil
+
+	// Try to parse as IP address
+	if net.ParseIP(target) != nil {
+		return nil // Valid IP
+	}
+
+	// Try to parse as CIDR notation
+	if _, _, err := net.ParseCIDR(target); err == nil {
+		return nil // Valid CIDR
+	}
+
+	// Validate as hostname/domain
+	// Must contain only valid chars: a-z, A-Z, 0-9, -, .
+	// Cannot start/end with - or .
+	// Cannot have consecutive dots
+	if isValidHostname(target) {
+		return nil
+	}
+
+	return fmt.Errorf("invalid target: must be IP, CIDR, or valid hostname")
+}
+
+func isValidHostname(hostname string) bool {
+	// Basic hostname validation
+	if len(hostname) == 0 || len(hostname) > 253 {
+		return false
+	}
+
+	// Cannot start or end with dot or hyphen
+	if hostname[0] == '.' || hostname[0] == '-' ||
+		hostname[len(hostname)-1] == '.' || hostname[len(hostname)-1] == '-' {
+		return false
+	}
+
+	// Check for consecutive dots
+	if strings.Contains(hostname, "..") {
+		return false
+	}
+
+	// Split into labels and validate each
+	labels := strings.Split(hostname, ".")
+	for _, label := range labels {
+		if len(label) == 0 || len(label) > 63 {
+			return false
+		}
+
+		// Label cannot start or end with hyphen
+		if label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+
+		// Check all characters are valid (alphanumeric or hyphen)
+		for _, ch := range label {
+			if (ch < 'a' || ch > 'z') &&
+				(ch < 'A' || ch > 'Z') &&
+				(ch < '0' || ch > '9') &&
+				ch != '-' {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 func showDryRun(target string, ports []uint16, cfg *config.Config) {

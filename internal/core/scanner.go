@@ -3,8 +3,10 @@ package core
 import (
 	"context"
 	"fmt"
+	"math"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -31,11 +33,11 @@ type ProgressEvent struct {
 }
 
 type Scanner struct {
-	config      *Config
-	results     chan interface{}
-	workerPool  chan struct{}
-	rateLimiter <-chan time.Time
-	wg          sync.WaitGroup
+	config     *Config
+	results    chan interface{}
+	rateTicker *time.Ticker
+	wg         sync.WaitGroup
+	completed  atomic.Uint64
 }
 
 type Config struct {
@@ -53,27 +55,24 @@ func NewScanner(cfg *Config) *Scanner {
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = 200 * time.Millisecond
 	}
-	if cfg.RateLimit <= 0 {
-		cfg.RateLimit = 7500
+	if cfg.RateLimit < 0 {
+		cfg.RateLimit = 0
 	}
 
-	var rateLimiter <-chan time.Time
+	var ticker *time.Ticker
 	if cfg.RateLimit > 0 {
 		interval := time.Second / time.Duration(cfg.RateLimit)
-		rateLimiter = time.Tick(interval)
+		ticker = time.NewTicker(interval)
 	}
 
 	return &Scanner{
-		config:      cfg,
-		results:     make(chan interface{}, 1000),
-		workerPool:  make(chan struct{}, cfg.Workers),
-		rateLimiter: rateLimiter,
+		config:     cfg,
+		results:    make(chan interface{}, 1000),
+		rateTicker: ticker,
 	}
 }
 
-func (s *Scanner) Results() <-chan interface{} {
-	return s.results
-}
+func (s *Scanner) Results() <-chan interface{} { return s.results }
 
 func (s *Scanner) ScanRange(ctx context.Context, host string, ports []uint16) {
 	jobs := make(chan uint16, len(ports))
@@ -110,12 +109,19 @@ func (s *Scanner) ScanRange(ctx context.Context, host string, ports []uint16) {
 	// Wait for progress reporter to finish
 	<-progressDone
 
+	// Stop rate ticker if used
+	if s.rateTicker != nil {
+		s.rateTicker.Stop()
+	}
+
 	// Now safe to close results
 	close(s.results)
 }
 
 func (s *Scanner) worker(ctx context.Context, host string, jobs <-chan uint16) {
 	defer s.wg.Done()
+
+	dialer := &net.Dialer{Timeout: s.config.Timeout}
 
 	for {
 		select {
@@ -126,46 +132,28 @@ func (s *Scanner) worker(ctx context.Context, host string, jobs <-chan uint16) {
 				return
 			}
 
-			select {
-			case <-ctx.Done():
-				return
-			case s.workerPool <- struct{}{}:
-				if s.rateLimiter != nil {
-					select {
-					case <-ctx.Done():
-						<-s.workerPool
-						return
-					case <-s.rateLimiter:
-					}
+			// Rate limit if enabled
+			if s.rateTicker != nil {
+				select {
+				case <-ctx.Done():
+					return
+				case <-s.rateTicker.C:
 				}
-
-				s.wg.Add(1)
-				go func(p uint16) {
-					defer s.wg.Done()
-					defer func() { <-s.workerPool }()
-					s.scanPort(ctx, host, p)
-				}(port)
 			}
+
+			s.scanPort(ctx, dialer, host, port)
 		}
 	}
 }
 
-func (s *Scanner) scanPort(ctx context.Context, host string, port uint16) {
+func (s *Scanner) scanPort(ctx context.Context, dialer *net.Dialer, host string, port uint16) {
 	start := time.Now()
 	address := fmt.Sprintf("%s:%d", host, port)
-
-	dialer := &net.Dialer{
-		Timeout: s.config.Timeout,
-	}
 
 	conn, err := dialer.DialContext(ctx, "tcp", address)
 	duration := time.Since(start)
 
-	result := ResultEvent{
-		Host:     host,
-		Port:     port,
-		Duration: duration,
-	}
+	result := ResultEvent{Host: host, Port: port, Duration: duration}
 
 	if err != nil {
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
@@ -175,16 +163,16 @@ func (s *Scanner) scanPort(ctx context.Context, host string, port uint16) {
 		}
 	} else {
 		result.State = StateOpen
-
 		if s.config.BannerGrab {
 			result.Banner = s.grabBanner(conn)
 		}
-
 		_ = conn.Close()
 	}
 
 	select {
 	case s.results <- result:
+		// Count completed results when delivered
+		s.completed.Add(1)
 	case <-ctx.Done():
 	}
 }
@@ -202,7 +190,6 @@ func (s *Scanner) grabBanner(conn net.Conn) string {
 func (s *Scanner) progressReporter(ctx context.Context, total int) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
-
 	startTime := time.Now()
 
 	for {
@@ -210,25 +197,24 @@ func (s *Scanner) progressReporter(ctx context.Context, total int) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			elapsed := time.Since(startTime).Seconds()
-			if elapsed == 0 {
-				elapsed = 0.1
+			completedUint := s.completed.Load()
+			// Safely convert to int with proper bounds checking
+			var completed int
+			if completedUint > math.MaxInt32 {
+				completed = math.MaxInt32
+			} else {
+				completed = int(completedUint) // #nosec G115 - safe after bounds check
 			}
-
-			// This is a simplified progress - in production you'd track actual completions
-			completed := int(elapsed * float64(s.config.RateLimit))
 			if completed > total {
 				completed = total
 			}
-
+			elapsed := time.Since(startTime).Seconds()
+			if elapsed <= 0 {
+				elapsed = 0.001
+			}
 			rate := float64(completed) / elapsed
 
-			progress := ProgressEvent{
-				Total:     total,
-				Completed: completed,
-				Rate:      rate,
-			}
-
+			progress := ProgressEvent{Total: total, Completed: completed, Rate: rate}
 			select {
 			case s.results <- progress:
 			case <-ctx.Done():

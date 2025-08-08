@@ -26,35 +26,47 @@ const (
 	UIViewDetails
 )
 
+// Message types for communication with the UI
+type scanResultMsg struct {
+	result core.ResultEvent
+}
+
+type scanProgressMsg struct {
+	progress core.ProgressEvent
+}
+
+type scanCompleteMsg struct{}
+
 // EnhancedUI is the improved TUI model with better navigation and feedback
 type EnhancedUI struct {
 	// Core
-	config        *config.Config
-	theme         theme.Theme
-	results       []core.ResultEvent
-	resultChan    <-chan interface{}
-	
+	config     *config.Config
+	theme      theme.Theme
+	results    []core.ResultEvent
+	resultChan <-chan interface{}
+
 	// View state
-	viewState     UIViewState
-	width         int
-	height        int
-	
+	viewState UIViewState
+	width     int
+	height    int
+
 	// Components
-	table         table.Model
-	progressBar   progress.Model
-	spinner       spinner.Model
-	help          help.Model
-	keys          KeyBindings
-	
+	table       table.Model
+	progressBar progress.Model
+	spinner     spinner.Model
+	help        help.Model
+	keys        KeyBindings
+
 	// Progress tracking
 	progressTrack *ProgressTracker
-	
+
 	// State
-	scanning   bool
-	isPaused   bool
-	showHelp   bool
-	totalPorts int
-	
+	scanning     bool
+	isPaused     bool
+	showHelp     bool
+	totalPorts   int
+	showOnlyOpen bool
+
 	// Stats
 	openCount     int
 	closedCount   int
@@ -134,10 +146,10 @@ func (k KeyBindings) FullHelp() [][]key.Binding {
 }
 
 // NewEnhancedUI creates a new enhanced UI model
-func NewEnhancedUI(cfg *config.Config, totalPorts int, results <-chan interface{}) *EnhancedUI {
+func NewEnhancedUI(cfg *config.Config, totalPorts int, results <-chan interface{}, onlyOpen bool) *EnhancedUI {
 	// Get theme
 	t := theme.GetTheme(cfg.UI.Theme)
-	
+
 	// Initialize table
 	columns := []table.Column{
 		{Title: "Port", Width: 8},
@@ -146,13 +158,13 @@ func NewEnhancedUI(cfg *config.Config, totalPorts int, results <-chan interface{
 		{Title: "Banner", Width: 40},
 		{Title: "Latency", Width: 10},
 	}
-	
+
 	tbl := table.New(
 		table.WithColumns(columns),
 		table.WithFocused(true),
 		table.WithHeight(15),
 	)
-	
+
 	// Style the table
 	s := table.DefaultStyles()
 	s.Header = s.Header.
@@ -163,19 +175,19 @@ func NewEnhancedUI(cfg *config.Config, totalPorts int, results <-chan interface{
 		Foreground(t.Background).
 		Background(t.Primary)
 	tbl.SetStyles(s)
-	
+
 	// Initialize progress bar
 	prog := progress.New(progress.WithDefaultGradient())
-	
+
 	// Initialize spinner
 	spin := spinner.New()
 	spin.Spinner = spinner.Dot
 	spin.Style = lipgloss.NewStyle().Foreground(t.Primary)
-	
+
 	// Initialize help
 	h := help.New()
 	h.ShowAll = false
-	
+
 	return &EnhancedUI{
 		config:        cfg,
 		theme:         t,
@@ -190,6 +202,7 @@ func NewEnhancedUI(cfg *config.Config, totalPorts int, results <-chan interface{
 		scanning:      true,
 		totalPorts:    totalPorts,
 		viewState:     UIViewMain,
+		showOnlyOpen:  onlyOpen,
 	}
 }
 
@@ -204,14 +217,14 @@ func (m *EnhancedUI) Init() tea.Cmd {
 // Update handles messages
 func (m *EnhancedUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
-	
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		m.table.SetHeight(m.height - 12) // Leave space for header and footer
 		m.table.SetWidth(m.width)
-		
+
 	case tea.KeyMsg:
 		// Handle help toggle first
 		if key.Matches(msg, m.keys.Help) {
@@ -224,7 +237,7 @@ func (m *EnhancedUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		
+
 		// Handle other keys based on view state
 		switch m.viewState {
 		case UIViewHelp:
@@ -232,12 +245,12 @@ func (m *EnhancedUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.showHelp = false
 				m.viewState = UIViewMain
 			}
-			
+
 		case UIViewMain:
 			switch {
 			case key.Matches(msg, m.keys.Quit):
 				return m, tea.Quit
-				
+
 			case key.Matches(msg, m.keys.Pause):
 				if m.scanning {
 					m.isPaused = !m.isPaused
@@ -247,35 +260,35 @@ func (m *EnhancedUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.progressTrack.Resume()
 					}
 				}
-				
+
 			case key.Matches(msg, m.keys.Clear):
 				return m, tea.ClearScreen
-				
+
 			case key.Matches(msg, m.keys.Up):
 				m.table.MoveUp(1)
-				
+
 			case key.Matches(msg, m.keys.Down):
 				m.table.MoveDown(1)
-				
+
 			case key.Matches(msg, m.keys.PageUp):
 				m.table.MoveUp(10)
-				
+
 			case key.Matches(msg, m.keys.PageDown):
 				m.table.MoveDown(10)
-				
+
 			case key.Matches(msg, m.keys.Home):
 				m.table.GotoTop()
-				
+
 			case key.Matches(msg, m.keys.End):
 				m.table.GotoBottom()
 			}
 		}
-		
+
 	case scanResultMsg:
 		m.results = append(m.results, msg.result)
 		m.updateTable()
 		m.updateStats(msg.result)
-		
+
 	case scanProgressMsg:
 		m.currentRate = msg.progress.Rate
 		m.progressTrack.Update(
@@ -285,33 +298,33 @@ func (m *EnhancedUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.filteredCount,
 			m.currentRate,
 		)
-		
+
 	case scanCompleteMsg:
 		m.scanning = false
-		
+
 	case spinner.TickMsg:
 		if m.scanning && !m.isPaused {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			cmds = append(cmds, cmd)
 		}
-		
+
 	case progress.FrameMsg:
 		progressModel, cmd := m.progressBar.Update(msg)
 		m.progressBar = progressModel.(progress.Model)
 		cmds = append(cmds, cmd)
 	}
-	
+
 	// Update table
 	var cmd tea.Cmd
 	m.table, cmd = m.table.Update(msg)
 	cmds = append(cmds, cmd)
-	
+
 	// Continue listening for results
 	if m.scanning {
 		cmds = append(cmds, m.listenForResults())
 	}
-	
+
 	return m, tea.Batch(cmds...)
 }
 
@@ -320,12 +333,12 @@ func (m *EnhancedUI) View() string {
 	if m.width == 0 || m.height == 0 {
 		return "Initializing..."
 	}
-	
+
 	// Show help overlay if active
 	if m.showHelp {
 		return m.renderHelp()
 	}
-	
+
 	// Main view
 	return m.renderMain()
 }
@@ -333,32 +346,32 @@ func (m *EnhancedUI) View() string {
 // renderMain renders the main scanning view
 func (m *EnhancedUI) renderMain() string {
 	var b strings.Builder
-	
+
 	// Breadcrumb
 	breadcrumb := m.renderBreadcrumb()
 	b.WriteString(breadcrumb + "\n")
-	
+
 	// Header
 	header := m.renderHeader()
 	b.WriteString(header + "\n")
-	
+
 	// Progress bar
 	if m.scanning {
 		progressView := m.renderProgress()
 		b.WriteString(progressView + "\n")
 	}
-	
+
 	// Status line
 	status := m.renderStatus()
 	b.WriteString(status + "\n\n")
-	
+
 	// Results table
 	b.WriteString(m.table.View() + "\n")
-	
+
 	// Footer with help
 	footer := m.renderFooter()
 	b.WriteString(footer)
-	
+
 	return b.String()
 }
 
@@ -367,7 +380,7 @@ func (m *EnhancedUI) renderBreadcrumb() string {
 	style := lipgloss.NewStyle().
 		Foreground(m.theme.Secondary).
 		Bold(true)
-	
+
 	location := "Port Scanner"
 	if m.isPaused {
 		location += " › Paused"
@@ -376,7 +389,7 @@ func (m *EnhancedUI) renderBreadcrumb() string {
 	} else {
 		location += " › Complete"
 	}
-	
+
 	return style.Render(location)
 }
 
@@ -385,7 +398,7 @@ func (m *EnhancedUI) renderHeader() string {
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(m.theme.Primary)
-	
+
 	var icon string
 	if m.scanning && !m.isPaused {
 		icon = m.spinner.View() + " "
@@ -394,7 +407,7 @@ func (m *EnhancedUI) renderHeader() string {
 	} else {
 		icon = "✓ "
 	}
-	
+
 	return titleStyle.Render(icon + "Port Scanner Results")
 }
 
@@ -408,10 +421,10 @@ func (m *EnhancedUI) renderProgress() string {
 func (m *EnhancedUI) renderStatus() string {
 	statusStyle := lipgloss.NewStyle().
 		Foreground(m.theme.Foreground)
-	
+
 	status := m.progressTrack.GetStatusLine()
 	details := m.progressTrack.GetDetailedStats()
-	
+
 	return statusStyle.Render(status + "\n" + details)
 }
 
@@ -419,7 +432,7 @@ func (m *EnhancedUI) renderStatus() string {
 func (m *EnhancedUI) renderFooter() string {
 	footerStyle := lipgloss.NewStyle().
 		Foreground(m.theme.Secondary)
-	
+
 	return footerStyle.Render(m.help.View(m.keys))
 }
 
@@ -429,7 +442,7 @@ func (m *EnhancedUI) renderHelp() string {
 		Padding(2).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(m.theme.Primary)
-	
+
 	content := `
 📖 KEYBOARD SHORTCUTS
 
@@ -454,7 +467,7 @@ Tips:
   • Service names are auto-detected
 
 Press ? or Esc to close help`
-	
+
 	return helpStyle.Render(content)
 }
 
@@ -463,21 +476,21 @@ Press ? or Esc to close help`
 func (m *EnhancedUI) updateTable() {
 	var rows []table.Row
 	for _, r := range m.results {
-		if r.State == core.StateOpen {
-			service := getServiceName(r.Port)
-			banner := r.Banner
-			if len(banner) > 40 {
-				banner = banner[:37] + "..."
-			}
-			
-			rows = append(rows, table.Row{
-				fmt.Sprintf("%d", r.Port),
-				string(r.State),
-				service,
-				banner,
-				fmt.Sprintf("%dms", r.Duration.Milliseconds()),
-			})
+		if m.showOnlyOpen && r.State != core.StateOpen {
+			continue
 		}
+		service := getServiceName(r.Port)
+		banner := r.Banner
+		if len(banner) > 40 {
+			banner = banner[:37] + "..."
+		}
+		rows = append(rows, table.Row{
+			fmt.Sprintf("%d", r.Port),
+			string(r.State),
+			service,
+			banner,
+			fmt.Sprintf("%dms", r.Duration.Milliseconds()),
+		})
 	}
 	m.table.SetRows(rows)
 }
@@ -500,7 +513,7 @@ func (m *EnhancedUI) listenForResults() tea.Cmd {
 			if !ok {
 				return scanCompleteMsg{}
 			}
-			
+
 			switch r := result.(type) {
 			case core.ResultEvent:
 				return scanResultMsg{result: r}
@@ -519,4 +532,32 @@ func (m *EnhancedUI) Run() error {
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err := p.Run()
 	return err
+}
+
+// getServiceName returns a human-friendly service name for well-known ports
+func getServiceName(port uint16) string {
+	services := map[uint16]string{
+		21:    "FTP",
+		22:    "SSH",
+		23:    "Telnet",
+		25:    "SMTP",
+		53:    "DNS",
+		80:    "HTTP",
+		110:   "POP3",
+		143:   "IMAP",
+		443:   "HTTPS",
+		445:   "SMB",
+		3306:  "MySQL",
+		3389:  "RDP",
+		5432:  "PostgreSQL",
+		6379:  "Redis",
+		8080:  "HTTP-Alt",
+		8443:  "HTTPS-Alt",
+		27017: "MongoDB",
+	}
+
+	if service, ok := services[port]; ok {
+		return service
+	}
+	return "Unknown"
 }

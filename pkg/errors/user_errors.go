@@ -7,32 +7,32 @@ import (
 
 // UserError represents an error with user-friendly message and recovery suggestions
 type UserError struct {
-	Code        string
-	Message     string
-	Details     string
-	Suggestion  string
-	WrappedErr  error
+	Code       string
+	Message    string
+	Details    string
+	Suggestion string
+	WrappedErr error
 }
 
 func (e *UserError) Error() string {
 	var parts []string
-	
+
 	if e.Message != "" {
 		parts = append(parts, e.Message)
 	}
-	
+
 	if e.Details != "" {
 		parts = append(parts, fmt.Sprintf("Details: %s", e.Details))
 	}
-	
+
 	if e.Suggestion != "" {
 		parts = append(parts, fmt.Sprintf("Try: %s", e.Suggestion))
 	}
-	
+
 	if e.WrappedErr != nil {
 		parts = append(parts, fmt.Sprintf("(Error: %v)", e.WrappedErr))
 	}
-	
+
 	return strings.Join(parts, "\n")
 }
 

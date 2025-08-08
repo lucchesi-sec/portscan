@@ -21,6 +21,26 @@ type JSONExporter struct {
 	scanRate   int
 }
 
+// buildResultDTO creates a consistent DTO from a ResultEvent
+func buildResultDTO(r core.ResultEvent) map[string]interface{} {
+	dto := map[string]interface{}{
+		"host":             r.Host,
+		"port":             r.Port,
+		"state":            string(r.State),
+		"banner":           r.Banner,
+		"response_time_ms": float64(r.Duration.Milliseconds()),
+	}
+
+	// Derive service name: prefer banner-derived hint, else well-known port map
+	svc := strings.TrimSpace(r.Banner)
+	if svc == "" {
+		svc = services.GetName(r.Port)
+	}
+	dto["service"] = svc
+
+	return dto
+}
+
 func NewJSONExporter(w io.Writer) *JSONExporter {
 	return &JSONExporter{
 		writer:  w,
@@ -63,18 +83,7 @@ func (e *JSONExporter) Export(results <-chan interface{}) {
 			if !ok {
 				continue
 			}
-			dto := map[string]interface{}{
-				"host":             r.Host,
-				"port":             r.Port,
-				"state":            string(r.State),
-				"banner":           r.Banner,
-				"response_time_ms": float64(r.Duration.Milliseconds()),
-			}
-			svc := strings.TrimSpace(r.Banner)
-			if svc == "" {
-				svc = services.GetName(r.Port)
-			}
-			dto["service"] = svc
+			dto := buildResultDTO(r)
 
 			if !first {
 				_, _ = e.writer.Write([]byte(","))
@@ -114,18 +123,7 @@ func (e *JSONExporter) Export(results <-chan interface{}) {
 			if !ok {
 				continue
 			}
-			dto := map[string]interface{}{
-				"host":             r.Host,
-				"port":             r.Port,
-				"state":            string(r.State),
-				"banner":           r.Banner,
-				"response_time_ms": float64(r.Duration.Milliseconds()),
-			}
-			svc := strings.TrimSpace(r.Banner)
-			if svc == "" {
-				svc = services.GetName(r.Port)
-			}
-			dto["service"] = svc
+			dto := buildResultDTO(r)
 
 			if !first {
 				_, _ = e.writer.Write([]byte(","))
@@ -144,19 +142,7 @@ func (e *JSONExporter) Export(results <-chan interface{}) {
 	// Default: Stream each result as a single JSON object per line (NDJSON)
 	for result := range results {
 		if r, ok := result.(core.ResultEvent); ok {
-			dto := map[string]interface{}{
-				"host":             r.Host,
-				"port":             r.Port,
-				"state":            string(r.State),
-				"banner":           r.Banner,
-				"response_time_ms": float64(r.Duration.Milliseconds()),
-			}
-			// Derive service name: prefer banner-derived hint, else well-known port map
-			svc := strings.TrimSpace(r.Banner)
-			if svc == "" {
-				svc = services.GetName(r.Port)
-			}
-			dto["service"] = svc
+			dto := buildResultDTO(r)
 
 			// Best-effort encode; callers can check write errors on the underlying writer if needed.
 			_ = e.encoder.Encode(dto)

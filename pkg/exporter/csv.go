@@ -16,7 +16,7 @@ type CSVExporter struct {
 func NewCSVExporter(w io.Writer) *CSVExporter {
 	csvWriter := csv.NewWriter(w)
 	// Write header
-	_ = csvWriter.Write([]string{"Host", "Port", "State", "Banner", "Latency(ms)"})
+	_ = csvWriter.Write([]string{"host", "port", "state", "banner", "latency_ms"})
 	return &CSVExporter{
 		writer:    w,
 		csvWriter: csvWriter,

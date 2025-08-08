@@ -25,9 +25,9 @@ type ProgressTracker struct {
 func NewProgressTracker(totalPorts int) *ProgressTracker {
 	now := time.Now()
 	return &ProgressTracker{
-		TotalPorts:  totalPorts,
-		StartTime:   now,
-		LastUpdate:  now,
+		TotalPorts: totalPorts,
+		StartTime:  now,
+		LastUpdate: now,
 	}
 }
 
@@ -39,7 +39,7 @@ func (p *ProgressTracker) Update(scanned, open, closed, filtered int, currentRat
 	p.FilteredPorts = filtered
 	p.CurrentRate = currentRate
 	p.LastUpdate = time.Now()
-	
+
 	// Calculate average rate
 	elapsed := p.GetActiveTime()
 	if elapsed.Seconds() > 0 && p.ScannedPorts > 0 {
@@ -60,12 +60,12 @@ func (p *ProgressTracker) GetETA() time.Duration {
 	if p.IsPaused || p.AverageRate <= 0 {
 		return 0
 	}
-	
+
 	remaining := p.TotalPorts - p.ScannedPorts
 	if remaining <= 0 {
 		return 0
 	}
-	
+
 	secondsRemaining := float64(remaining) / p.AverageRate
 	return time.Duration(secondsRemaining * float64(time.Second))
 }
@@ -101,7 +101,7 @@ func (p *ProgressTracker) GetStatusLine() string {
 	progress := p.GetProgress()
 	eta := p.GetETA()
 	activeTime := p.GetActiveTime()
-	
+
 	status := fmt.Sprintf(
 		"Progress: %.1f%% (%d/%d) | ETA: %s | Speed: %.0f pps | Time: %s",
 		progress,
@@ -111,11 +111,11 @@ func (p *ProgressTracker) GetStatusLine() string {
 		p.CurrentRate,
 		formatDuration(activeTime),
 	)
-	
+
 	if p.IsPaused {
 		status = "⏸ PAUSED | " + status
 	}
-	
+
 	return status
 }
 
@@ -135,11 +135,11 @@ func formatDuration(d time.Duration) string {
 	if d <= 0 {
 		return "--:--"
 	}
-	
+
 	h := int(d.Hours())
 	m := int(d.Minutes()) % 60
 	s := int(d.Seconds()) % 60
-	
+
 	if h > 0 {
 		return fmt.Sprintf("%02d:%02d:%02d", h, m, s)
 	}
