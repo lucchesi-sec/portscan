@@ -141,25 +141,32 @@ dns:
 ```bash
 portscan scan 192.168.1.1 --json
 ```
+By default, JSON is streamed as NDJSON (one JSON object per line), ideal for large scans:
+```text
+{"host":"192.168.1.1","port":22,"state":"open","service":"ssh","banner":"SSH-2.0-OpenSSH_8.9p1","response_time_ms":5.2}
+{"host":"192.168.1.1","port":80,"state":"closed","service":"http","banner":"","response_time_ms":1}
+```
+
+To emit a single JSON array (still streamed, no buffering):
+```bash
+portscan scan 192.168.1.1 --json --json-array > results.json
+```
+
+To emit a single JSON object with scan_info and results[]:
+```bash
+portscan scan 192.168.1.1 --json --json-object > results.json
+```
+Example output shape:
 ```json
 {
+  "results": [ { "host": "192.168.1.1", "port": 22, "state": "open", "service": "ssh", "banner": "SSH-2.0-OpenSSH_8.9p1", "response_time_ms": 5.2 } ],
   "scan_info": {
     "target": "192.168.1.1",
     "start_time": "2025-01-15T10:30:00Z",
     "end_time": "2025-01-15T10:30:45Z",
     "total_ports": 1024,
     "scan_rate": 7500
-  },
-  "results": [
-    {
-      "host": "192.168.1.1",
-      "port": 22,
-      "state": "open",
-      "service": "ssh",
-      "banner": "SSH-2.0-OpenSSH_8.9p1",
-      "response_time_ms": 5.2
-    }
-  ]
+  }
 }
 ```
 

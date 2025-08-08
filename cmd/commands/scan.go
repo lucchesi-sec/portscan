@@ -64,16 +64,18 @@ func init() {
 	scanCmd.Flags().IntP("timeout", "t", 200, "connection timeout in milliseconds")
 	scanCmd.Flags().IntP("workers", "w", 0, "number of concurrent workers (0=auto-detect)")
 	scanCmd.Flags().BoolP("banners", "b", false, "grab service banners")
-	
+
 	// Output flags
 	scanCmd.Flags().StringP("output", "o", "", "output format (json, csv, prometheus, table)")
 	scanCmd.Flags().BoolP("stdin", "s", false, "read targets from stdin")
 	scanCmd.Flags().Bool("json", false, "output results as JSON")
+	scanCmd.Flags().Bool("json-array", false, "output JSON as a single array instead of NDJSON stream")
+	scanCmd.Flags().Bool("json-object", false, "output a single JSON object with scan_info and results[]")
 	scanCmd.Flags().Bool("quiet", false, "only show open ports")
-	
+
 	// UI flags
 	scanCmd.Flags().String("ui.theme", "default", "UI theme (default, dracula, monokai)")
-	
+
 	// Validation flags
 	scanCmd.Flags().Bool("dry-run", false, "validate parameters without scanning")
 	scanCmd.Flags().Bool("examples", false, "show extended examples and exit")
@@ -86,6 +88,10 @@ func init() {
 	_ = viper.BindPFlag("workers", scanCmd.Flags().Lookup("workers"))
 	_ = viper.BindPFlag("banners", scanCmd.Flags().Lookup("banners"))
 	_ = viper.BindPFlag("output", scanCmd.Flags().Lookup("output"))
+	_ = viper.BindPFlag("stdin", scanCmd.Flags().Lookup("stdin"))
+	_ = viper.BindPFlag("json", scanCmd.Flags().Lookup("json"))
+	_ = viper.BindPFlag("json_array", scanCmd.Flags().Lookup("json-array"))
+	_ = viper.BindPFlag("json_object", scanCmd.Flags().Lookup("json-object"))
 	_ = viper.BindPFlag("ui.theme", scanCmd.Flags().Lookup("ui.theme"))
 	_ = viper.BindPFlag("dry_run", scanCmd.Flags().Lookup("dry-run"))
 	_ = viper.BindPFlag("verbose", scanCmd.Flags().Lookup("verbose"))
@@ -186,7 +192,15 @@ func runScan(cmd *cobra.Command, args []string) error {
 	scanner := core.NewScanner(scannerCfg)
 
 	if viper.GetBool("json") || cfg.Output == "json" {
-		exp := exporter.NewJSONExporter(os.Stdout)
+		var exp *exporter.JSONExporter
+		switch {
+		case viper.GetBool("json_object"):
+			exp = exporter.NewJSONExporterObject(os.Stdout, target, len(ports), cfg.Rate)
+		case viper.GetBool("json_array"):
+			exp = exporter.NewJSONExporterArray(os.Stdout)
+		default:
+			exp = exporter.NewJSONExporter(os.Stdout)
+		}
 		go exp.Export(scanner.Results())
 		scanner.ScanRange(ctx, target, ports)
 		_ = exp.Close()
