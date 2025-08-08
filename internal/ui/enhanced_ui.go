@@ -24,6 +24,8 @@ const (
 	UIViewMain UIViewState = iota
 	UIViewHelp
 	UIViewDetails
+	UIViewSortMenu
+	UIViewFilterMenu
 )
 
 // Message types for communication with the UI
@@ -72,6 +74,11 @@ type EnhancedUI struct {
 	closedCount   int
 	filteredCount int
 	currentRate   float64
+
+	// Sorting and Filtering
+	sortState   *SortState
+	filterState *FilterState
+	displayResults []core.ResultEvent // Filtered/sorted view of results
 }
 
 // KeyBindings defines all keyboard shortcuts
@@ -86,6 +93,11 @@ type KeyBindings struct {
 	Pause    key.Binding
 	Clear    key.Binding
 	Quit     key.Binding
+	Sort     key.Binding
+	Filter   key.Binding
+	Reset    key.Binding
+	OpenOnly key.Binding
+	Search   key.Binding
 }
 
 var defaultKeys = KeyBindings{
@@ -129,11 +141,31 @@ var defaultKeys = KeyBindings{
 		key.WithKeys("q", "ctrl+c", "esc"),
 		key.WithHelp("q/Esc", "quit"),
 	),
+	Sort: key.NewBinding(
+		key.WithKeys("s"),
+		key.WithHelp("s", "sort results"),
+	),
+	Filter: key.NewBinding(
+		key.WithKeys("f"),
+		key.WithHelp("f", "filter results"),
+	),
+	Reset: key.NewBinding(
+		key.WithKeys("r"),
+		key.WithHelp("r", "reset filters"),
+	),
+	OpenOnly: key.NewBinding(
+		key.WithKeys("o"),
+		key.WithHelp("o", "toggle open only"),
+	),
+	Search: key.NewBinding(
+		key.WithKeys("/"),
+		key.WithHelp("/", "search banners"),
+	),
 }
 
 // ShortHelp returns key bindings for the help bar
 func (k KeyBindings) ShortHelp() []key.Binding {
-	return []key.Binding{k.Help, k.Pause, k.Quit}
+	return []key.Binding{k.Help, k.Sort, k.Filter, k.Pause, k.Quit}
 }
 
 // FullHelp returns all key bindings for the help view
@@ -141,7 +173,8 @@ func (k KeyBindings) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.PageUp, k.PageDown},
 		{k.Home, k.End, k.Clear},
-		{k.Pause, k.Help, k.Quit},
+		{k.Sort, k.Filter, k.Reset, k.OpenOnly},
+		{k.Search, k.Pause, k.Help, k.Quit},
 	}
 }
 
@@ -188,6 +221,13 @@ func NewEnhancedUI(cfg *config.Config, totalPorts int, results <-chan interface{
 	h := help.New()
 	h.ShowAll = false
 
+	// Initialize sort and filter states
+	sortState := NewSortState()
+	filterState := NewFilterState()
+	if onlyOpen {
+		filterState.SetStateFilter(StateFilterOpen)
+	}
+
 	return &EnhancedUI{
 		config:        cfg,
 		theme:         t,
@@ -203,6 +243,9 @@ func NewEnhancedUI(cfg *config.Config, totalPorts int, results <-chan interface{
 		totalPorts:    totalPorts,
 		viewState:     UIViewMain,
 		showOnlyOpen:  onlyOpen,
+		sortState:     sortState,
+		filterState:   filterState,
+		displayResults: []core.ResultEvent{},
 	}
 }
 
@@ -264,6 +307,30 @@ func (m *EnhancedUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, m.keys.Clear):
 				return m, tea.ClearScreen
 
+			case key.Matches(msg, m.keys.Sort):
+				m.viewState = UIViewSortMenu
+				return m, nil
+
+			case key.Matches(msg, m.keys.Filter):
+				m.viewState = UIViewFilterMenu
+				return m, nil
+
+			case key.Matches(msg, m.keys.Reset):
+				m.filterState.Reset()
+				m.sortState = NewSortState()
+				m.updateTable()
+				return m, nil
+
+			case key.Matches(msg, m.keys.OpenOnly):
+				// Toggle open-only filter
+				if m.filterState.StateFilter == StateFilterOpen {
+					m.filterState.SetStateFilter(StateFilterAll)
+				} else {
+					m.filterState.SetStateFilter(StateFilterOpen)
+				}
+				m.updateTable()
+				return m, nil
+
 			case key.Matches(msg, m.keys.Up):
 				m.table.MoveUp(1)
 
@@ -281,6 +348,62 @@ func (m *EnhancedUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			case key.Matches(msg, m.keys.End):
 				m.table.GotoBottom()
+			}
+
+		case UIViewSortMenu:
+			switch msg.String() {
+			case "1":
+				m.sortState.SetMode(SortByPort)
+				m.viewState = UIViewMain
+				m.updateTable()
+			case "2":
+				m.sortState.SetMode(SortByPortDesc)
+				m.viewState = UIViewMain
+				m.updateTable()
+			case "3":
+				m.sortState.SetMode(SortByState)
+				m.viewState = UIViewMain
+				m.updateTable()
+			case "4":
+				m.sortState.SetMode(SortByService)
+				m.viewState = UIViewMain
+				m.updateTable()
+			case "5":
+				m.sortState.SetMode(SortByLatency)
+				m.viewState = UIViewMain
+				m.updateTable()
+			case "6":
+				m.sortState.SetMode(SortByLatencyDesc)
+				m.viewState = UIViewMain
+				m.updateTable()
+			case "7":
+				m.sortState.SetMode(SortByDiscovery)
+				m.viewState = UIViewMain
+				m.updateTable()
+			case "q", "esc":
+				m.viewState = UIViewMain
+			}
+
+		case UIViewFilterMenu:
+			switch msg.String() {
+			case "1":
+				m.filterState.SetStateFilter(StateFilterAll)
+				m.viewState = UIViewMain
+				m.updateTable()
+			case "2":
+				m.filterState.SetStateFilter(StateFilterOpen)
+				m.viewState = UIViewMain
+				m.updateTable()
+			case "3":
+				m.filterState.SetStateFilter(StateFilterClosed)
+				m.viewState = UIViewMain
+				m.updateTable()
+			case "4":
+				m.filterState.SetStateFilter(StateFilterFiltered)
+				m.viewState = UIViewMain
+				m.updateTable()
+			case "q", "esc":
+				m.viewState = UIViewMain
 			}
 		}
 
@@ -339,6 +462,16 @@ func (m *EnhancedUI) View() string {
 		return m.renderHelp()
 	}
 
+	// Show sort menu if active
+	if m.viewState == UIViewSortMenu {
+		return m.renderSortMenu()
+	}
+
+	// Show filter menu if active
+	if m.viewState == UIViewFilterMenu {
+		return m.renderFilterMenu()
+	}
+
 	// Main view
 	return m.renderMain()
 }
@@ -363,7 +496,15 @@ func (m *EnhancedUI) renderMain() string {
 
 	// Status line
 	status := m.renderStatus()
-	b.WriteString(status + "\n\n")
+	b.WriteString(status + "\n")
+
+	// Sort/Filter indicators
+	indicators := m.renderSortFilterIndicators()
+	if indicators != "" {
+		b.WriteString(indicators + "\n")
+	}
+
+	b.WriteString("\n")
 
 	// Results table
 	b.WriteString(m.table.View() + "\n")
@@ -436,6 +577,86 @@ func (m *EnhancedUI) renderFooter() string {
 	return footerStyle.Render(m.help.View(m.keys))
 }
 
+// renderSortFilterIndicators renders active sort and filter indicators
+func (m *EnhancedUI) renderSortFilterIndicators() string {
+	style := lipgloss.NewStyle().
+		Foreground(m.theme.Secondary).
+		Bold(true)
+
+	var indicators []string
+
+	if m.sortState.IsActive {
+		indicators = append(indicators, m.sortState.GetSortDescription())
+	}
+
+	filterDesc := m.filterState.GetActiveFilterDescription()
+	if filterDesc != "" {
+		indicators = append(indicators, filterDesc)
+	}
+
+	if len(indicators) > 0 {
+		return style.Render("▶ " + strings.Join(indicators, " | "))
+	}
+	return ""
+}
+
+// renderSortMenu renders the sort menu overlay
+func (m *EnhancedUI) renderSortMenu() string {
+	menuStyle := lipgloss.NewStyle().
+		Padding(1, 2).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(m.theme.Primary)
+
+	content := `📊 SORT OPTIONS
+
+1. Port (ascending)
+2. Port (descending)
+3. State (Open → Closed → Filtered)
+4. Service (alphabetical)
+5. Latency (fastest first)
+6. Latency (slowest first)
+7. Discovery order (original)
+
+Current: ` + m.sortState.GetModeString() + `
+
+Press number to select or ESC to cancel`
+
+	return menuStyle.Render(content)
+}
+
+// renderFilterMenu renders the filter menu overlay
+func (m *EnhancedUI) renderFilterMenu() string {
+	menuStyle := lipgloss.NewStyle().
+		Padding(1, 2).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(m.theme.Primary)
+
+	var current string
+	switch m.filterState.StateFilter {
+	case StateFilterAll:
+		current = "All States"
+	case StateFilterOpen:
+		current = "Open Only"
+	case StateFilterClosed:
+		current = "Closed Only"
+	case StateFilterFiltered:
+		current = "Filtered Only"
+	}
+
+	content := `🔍 FILTER OPTIONS
+
+1. Show All States
+2. Show Open Ports Only
+3. Show Closed Ports Only
+4. Show Filtered Ports Only
+
+Current: ` + current + `
+
+Press number to select or ESC to cancel`
+
+	return menuStyle.Render(content)
+}
+
 // renderHelp renders the help overlay
 func (m *EnhancedUI) renderHelp() string {
 	helpStyle := lipgloss.NewStyle().
@@ -454,6 +675,13 @@ Navigation:
   Home/g     Go to top
   End/G      Go to bottom
 
+Sorting & Filtering:
+  s          Sort results
+  f          Filter results
+  o          Toggle open ports only
+  r          Reset all filters
+  /          Search in banners
+
 Control:
   p/Space    Pause/Resume scan
   Ctrl+L     Clear screen
@@ -462,8 +690,8 @@ Control:
 
 Tips:
   • Results update in real-time
-  • ETA adjusts based on scan speed
-  • Open ports are highlighted
+  • Default sort: Port (ascending)
+  • Quick filter with 'o' for open ports
   • Service names are auto-detected
 
 Press ? or Esc to close help`
@@ -474,19 +702,30 @@ Press ? or Esc to close help`
 // Helper methods
 
 func (m *EnhancedUI) updateTable() {
+	// Apply filtering first
+	filtered := m.filterState.ApplyFilters(m.results)
+
+	// Then apply sorting
+	m.displayResults = m.sortState.ApplySort(filtered)
+
+	// Convert to table rows
 	var rows []table.Row
-	for _, r := range m.results {
-		if m.showOnlyOpen && r.State != core.StateOpen {
-			continue
-		}
+	for _, r := range m.displayResults {
 		service := getServiceName(r.Port)
 		banner := r.Banner
 		if len(banner) > 40 {
 			banner = banner[:37] + "..."
 		}
+
+		// Color-code based on state
+		stateDisplay := string(r.State)
+		if r.State == core.StateOpen {
+			stateDisplay = lipgloss.NewStyle().Foreground(m.theme.Success).Render(stateDisplay)
+		}
+
 		rows = append(rows, table.Row{
 			fmt.Sprintf("%d", r.Port),
-			string(r.State),
+			stateDisplay,
 			service,
 			banner,
 			fmt.Sprintf("%dms", r.Duration.Milliseconds()),

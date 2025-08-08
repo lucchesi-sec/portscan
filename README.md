@@ -9,6 +9,8 @@
 [![Release](https://img.shields.io/github/v/release/lucchesi-sec/portscan?style=for-the-badge)](https://github.com/lucchesi-sec/portscan/releases)
 [![Build Status](https://img.shields.io/github/workflow/status/lucchesi-sec/portscan/CI?style=for-the-badge)](https://github.com/lucchesi-sec/portscan/actions)
 
+![Port Scanner TUI Demo](demo/recordings/tui-demo.gif)
+
 </div>
 
 ## ✨ Features

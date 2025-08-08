@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/lucchesi-sec/portscan/internal/core"
@@ -204,13 +205,25 @@ func runScan(cmd *cobra.Command, args []string) error {
 		default:
 			exp = exporter.NewJSONExporter(os.Stdout)
 		}
-		go exp.Export(scanner.Results())
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			exp.Export(scanner.Results())
+		}()
 		scanner.ScanRange(ctx, target, ports)
+		wg.Wait()
 		_ = exp.Close()
 	} else if cfg.Output == "csv" {
 		exp := exporter.NewCSVExporter(os.Stdout)
-		go exp.Export(scanner.Results())
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			exp.Export(scanner.Results())
+		}()
 		scanner.ScanRange(ctx, target, ports)
+		wg.Wait()
 		_ = exp.Close()
 	} else {
 		// Use Enhanced TUI
