@@ -2,9 +2,9 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"net"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,6 +24,7 @@ type ResultEvent struct {
 	State    ScanState
 	Banner   string
 	Duration time.Duration
+	Protocol string // "tcp" or "udp"
 }
 
 type ProgressEvent struct {
@@ -41,11 +42,15 @@ type Scanner struct {
 }
 
 type Config struct {
-	Workers    int
-	Timeout    time.Duration
-	RateLimit  int
-	BannerGrab bool
-	MaxRetries int
+	Workers        int
+	Timeout        time.Duration
+	UDPReadTimeout time.Duration // Specific timeout for UDP read operations
+	UDPBufferSize  int           // Buffer size for UDP responses
+	UDPJitterMaxMs int           // Maximum jitter in milliseconds for UDP scanning
+	RateLimit      int
+	BannerGrab     bool
+	MaxRetries     int
+	UDPWorkerRatio float64 // Ratio of workers to use for UDP scanning (0.5 = half of TCP workers)
 }
 
 func NewScanner(cfg *Config) *Scanner {
@@ -55,8 +60,25 @@ func NewScanner(cfg *Config) *Scanner {
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = 200 * time.Millisecond
 	}
+	// Set default UDP read timeout if not specified
+	if cfg.UDPReadTimeout <= 0 {
+		// Default to same as TCP timeout for consistency
+		cfg.UDPReadTimeout = cfg.Timeout
+	}
+	// Set default UDP buffer size if not specified
+	if cfg.UDPBufferSize <= 0 {
+		cfg.UDPBufferSize = 1024 // 1KB buffer for UDP responses
+	}
+	// Set default UDP jitter if not specified
+	if cfg.UDPJitterMaxMs <= 0 {
+		cfg.UDPJitterMaxMs = 10 // 10ms max jitter for UDP scanning
+	}
 	if cfg.RateLimit < 0 {
 		cfg.RateLimit = 0
+	}
+	// Set default UDP worker ratio if not specified
+	if cfg.UDPWorkerRatio <= 0 {
+		cfg.UDPWorkerRatio = 0.5 // Default to half of TCP workers
 	}
 
 	var ticker *time.Ticker
@@ -148,12 +170,12 @@ func (s *Scanner) worker(ctx context.Context, host string, jobs <-chan uint16) {
 
 func (s *Scanner) scanPort(ctx context.Context, dialer *net.Dialer, host string, port uint16) {
 	start := time.Now()
-	address := fmt.Sprintf("%s:%d", host, port)
+	address := net.JoinHostPort(host, strconv.Itoa(int(port)))
 
 	conn, err := dialer.DialContext(ctx, "tcp", address)
 	duration := time.Since(start)
 
-	result := ResultEvent{Host: host, Port: port, Duration: duration}
+	result := ResultEvent{Host: host, Port: port, Duration: duration, Protocol: "tcp"}
 
 	if err != nil {
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {

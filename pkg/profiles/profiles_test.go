@@ -13,6 +13,9 @@ func TestGetProfile(t *testing.T) {
 		{"web", 40},
 		{"database", 32},
 		{"full", 65535},
+		{"udp-common", 27},
+		{"gateway", 22},
+		{"voip", 13},
 	}
 
 	for _, tt := range tests {
@@ -36,15 +39,18 @@ func TestGetProfile(t *testing.T) {
 
 func TestListProfiles(t *testing.T) {
 	profiles := ListProfiles()
-	if len(profiles) != 4 {
-		t.Errorf("Expected 4 profiles, got %d", len(profiles))
+	if len(profiles) != 7 {
+		t.Errorf("Expected 7 profiles, got %d", len(profiles))
 	}
 
 	expected := map[string]bool{
-		"quick":    true,
-		"web":      true,
-		"database": true,
-		"full":     true,
+		"quick":      true,
+		"web":        true,
+		"database":   true,
+		"full":       true,
+		"udp-common": true,
+		"gateway":    true,
+		"voip":       true,
 	}
 
 	for _, profile := range profiles {

@@ -186,9 +186,10 @@ func NewEnhancedUI(cfg *config.Config, totalPorts int, results <-chan interface{
 	// Initialize table
 	columns := []table.Column{
 		{Title: "Port", Width: 8},
+		{Title: "Protocol", Width: 8},
 		{Title: "State", Width: 10},
 		{Title: "Service", Width: 15},
-		{Title: "Banner", Width: 40},
+		{Title: "Banner", Width: 35},
 		{Title: "Latency", Width: 10},
 	}
 
@@ -444,10 +445,12 @@ func (m *EnhancedUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 	}
 
-	// Update table
-	var cmd tea.Cmd
-	m.table, cmd = m.table.Update(msg)
-	cmds = append(cmds, cmd)
+	// Update table only if it wasn't a handled navigation key
+	if !m.isNavigationKey(msg) {
+		var cmd tea.Cmd
+		m.table, cmd = m.table.Update(msg)
+		cmds = append(cmds, cmd)
+	}
 
 	// Continue listening for results
 	if m.scanning {
@@ -707,6 +710,21 @@ Press ? or Esc to close help`
 
 // Helper methods
 
+// isNavigationKey checks if a key message is a navigation key we handle manually
+func (m *EnhancedUI) isNavigationKey(msg tea.Msg) bool {
+	keyMsg, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return false
+	}
+
+	return key.Matches(keyMsg, m.keys.Up) ||
+		key.Matches(keyMsg, m.keys.Down) ||
+		key.Matches(keyMsg, m.keys.PageUp) ||
+		key.Matches(keyMsg, m.keys.PageDown) ||
+		key.Matches(keyMsg, m.keys.Home) ||
+		key.Matches(keyMsg, m.keys.End)
+}
+
 func (m *EnhancedUI) updateTable() {
 	// Apply filtering first
 	filtered := m.filterState.ApplyFilters(m.results)
@@ -729,8 +747,16 @@ func (m *EnhancedUI) updateTable() {
 			stateDisplay = lipgloss.NewStyle().Foreground(m.theme.Success).Render(stateDisplay)
 		}
 
+		// Display protocol (default to TCP if not set for backward compatibility)
+		protocol := r.Protocol
+		if protocol == "" {
+			protocol = "tcp"
+		}
+		protocol = strings.ToUpper(protocol)
+
 		rows = append(rows, table.Row{
 			fmt.Sprintf("%d", r.Port),
+			protocol,
 			stateDisplay,
 			service,
 			banner,

@@ -74,6 +74,67 @@ var profiles = map[string][]uint16{
 	"full": {
 		// This is handled specially - returns 1-65535
 	},
+	"udp-common": {
+		// Common UDP services
+		53,     // DNS
+		67, 68, // DHCP
+		69,            // TFTP
+		123,           // NTP
+		137, 138, 139, // NetBIOS
+		161, 162, // SNMP
+		445,        // SMB
+		500,        // IPSec/IKE
+		514,        // Syslog
+		520,        // RIP
+		1194,       // OpenVPN
+		1701,       // L2TP
+		1812, 1813, // RADIUS
+		1900,       // UPnP
+		3478,       // STUN/TURN
+		4500,       // IPSec NAT-T
+		5060, 5061, // SIP
+		5353,  // mDNS
+		5355,  // LLMNR
+		10000, // Webmin
+		51820, // WireGuard
+	},
+	"gateway": {
+		// Common gateway/router services (TCP and UDP)
+		22,     // SSH
+		23,     // Telnet
+		53,     // DNS
+		67, 68, // DHCP
+		80,    // HTTP
+		161,   // SNMP
+		443,   // HTTPS
+		500,   // IPSec/IKE
+		1194,  // OpenVPN
+		1701,  // L2TP
+		1723,  // PPTP
+		4500,  // IPSec NAT-T
+		5060,  // SIP
+		8080,  // HTTP-alt
+		8443,  // HTTPS-alt
+		10000, // Webmin
+		51820, // WireGuard
+		// Router management interfaces
+		8291, // MikroTik Winbox
+		2000, // MikroTik bandwidth test
+		8728, // MikroTik API
+		8729, // MikroTik API-SSL
+	},
+	"voip": {
+		// VoIP/SIP services
+		5060, 5061, // SIP
+		5004, 5005, // RTP
+		3478, 3479, // STUN
+		10000, 20000, // RTP range start/end markers
+		4569, // IAX2
+		2000, // Cisco SCCP
+		1719, // H.323 Gatekeeper
+		1720, // H.323 Call Signaling
+		5038, // Asterisk Manager
+	},
 }
 
 // GetProfile returns the ports for a given profile name

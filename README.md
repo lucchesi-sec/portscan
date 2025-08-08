@@ -19,6 +19,7 @@
 - **🎨 Beautiful TUI** - Real-time progress bars, sortable tables, and live metrics
 - **🌐 Network-Aware** - CIDR notation, DNS resolution, and adaptive timeouts
 - **🔍 Service Detection** - Banner grabbing for service identification
+- **🌊 UDP Support** - Comprehensive UDP scanning with service-specific probes
 - **📊 Multiple Outputs** - JSON, CSV exports or interactive terminal display
 - **⚡ Resource Efficient** - <50MB memory usage for /24 network scans
 - **🛡️ Security-First** - Rate limiting, privilege dropping, audit logging
@@ -62,6 +63,12 @@ portscan scan 10.0.0.0/24 --ports 1-1024 --banners
 
 # High-speed scan with custom rate
 portscan scan target.com --ports 1-65535 --rate 10000
+
+# UDP scanning
+portscan scan 192.168.1.1 --protocol udp --profile udp-common
+
+# Scan both TCP and UDP
+portscan scan 192.168.1.1 --protocol both --profile gateway
 ```
 
 ## 🖥️ Terminal Interface
@@ -101,6 +108,8 @@ Usage:
 Flags:
   -p, --ports string      Ports to scan (default "1-1024")
                          Examples: "80,443,8080" or "1-1024" or "1-1000,8000-9000"
+  -P, --profile string   Scan profile: quick, web, database, gateway, udp-common, voip, full
+  -u, --protocol string  Protocol to scan: tcp (default), udp, or both
   -r, --rate int         Packets per second rate limit (default 7500)
   -t, --timeout int      Connection timeout in milliseconds (default 200)
   -w, --workers int      Number of concurrent workers (default 100)
@@ -176,6 +185,60 @@ Example output shape:
 ```bash
 portscan scan 192.168.1.1 --output csv > results.csv
 ```
+
+## 🌐 UDP Scanning
+
+PortScan supports comprehensive UDP scanning alongside traditional TCP scanning. UDP scanning is essential for discovering services like DNS, DHCP, VPN protocols, and VoIP.
+
+### UDP Protocol Features
+
+- **Service-Specific Probes**: Optimized probes for common UDP services
+- **Smart Detection**: Identifies services based on response patterns
+- **Rate Limiting**: Conservative rate limiting to avoid ICMP rate limits
+- **Multi-Protocol**: Scan TCP and UDP simultaneously
+
+### UDP Usage Examples
+
+```bash
+# Scan common UDP services
+portscan scan 192.168.1.1 --protocol udp --profile udp-common
+
+# Scan gateway with both protocols
+portscan scan 192.168.1.1 --protocol both --profile gateway
+
+# Scan specific UDP ports
+portscan scan router.local --protocol udp --ports 53,67,68,123,161,1194
+
+# VoIP service discovery
+portscan scan pbx.company.com --protocol udp --profile voip
+```
+
+### Available UDP Profiles
+
+- **udp-common**: DNS, DHCP, NTP, SNMP, OpenVPN, WireGuard
+- **gateway**: Router/gateway services (TCP & UDP)
+- **voip**: SIP, RTP, STUN, IAX2 and telephony services
+
+### UDP Service Detection
+
+PortScan automatically detects and identifies common UDP services:
+
+| Port | Service | Detection Method |
+|------|---------|-----------------|
+| 53 | DNS | DNS query response |
+| 67/68 | DHCP | DHCP packet format |
+| 123 | NTP | NTP version response |
+| 161 | SNMP | SNMP packet structure |
+| 500/4500 | IPSec | IKE handshake |
+| 1194 | OpenVPN | OpenVPN response |
+| 51820 | WireGuard | WireGuard handshake |
+
+### UDP Scanning Considerations
+
+- **Slower than TCP**: UDP scanning relies on timeouts and ICMP responses
+- **Less Reliable**: Many services don't respond to empty UDP packets
+- **Rate Limited**: OS-level ICMP rate limiting affects scan speed
+- **No Privileges Required**: Uses standard UDP sockets, no raw socket access needed
 
 ## 🏗️ Architecture
 

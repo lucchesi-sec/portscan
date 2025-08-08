@@ -114,6 +114,6 @@ func TimeoutError(timeout int) *UserError {
 		Code:       "TIMEOUT",
 		Message:    "Operation timed out",
 		Details:    fmt.Sprintf("No response received within %dms", timeout),
-		Suggestion: fmt.Sprintf("Try increasing timeout with --timeout %d or check if target is reachable", timeout*2),
+		Suggestion: fmt.Sprintf("Try increasing timeout with --timeout %d or check if target is reachable", timeout+100),
 	}
 }

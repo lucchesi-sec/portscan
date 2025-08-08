@@ -52,7 +52,16 @@ It provides real-time progress updates and can export results in various formats
   portscan scan 192.168.1.1 --output json > results.json
 
   # Scan multiple targets from file
-  cat targets.txt | portscan scan --stdin`,
+  cat targets.txt | portscan scan --stdin
+
+  # UDP scanning
+  portscan scan 192.168.1.1 --protocol udp --profile udp-common
+
+  # Scan gateway with both TCP and UDP
+  portscan scan 192.168.1.1 --protocol both --profile gateway
+
+  # Scan for VoIP services
+  portscan scan pbx.example.com --protocol udp --profile voip`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runScan,
 }
@@ -62,10 +71,12 @@ func init() {
 
 	// Core scanning flags
 	scanCmd.Flags().StringP("ports", "p", "1-1024", "ports to scan (e.g., '80,443,8080' or '1-1024')")
-	scanCmd.Flags().StringP("profile", "P", "", "scan profile: quick (top 100), web (HTTP/HTTPS), database (DB ports), full (1-65535)")
+	scanCmd.Flags().StringP("profile", "P", "", "scan profile: quick, web, database, gateway, udp-common, voip, full")
+	scanCmd.Flags().StringP("protocol", "u", "tcp", "protocol to scan: tcp (default), udp, or both")
 	scanCmd.Flags().IntP("rate", "r", 7500, "packets per second rate limit")
 	scanCmd.Flags().IntP("timeout", "t", 200, "connection timeout in milliseconds")
 	scanCmd.Flags().IntP("workers", "w", 0, "number of concurrent workers (0=auto-detect)")
+	scanCmd.Flags().Float64("udp-worker-ratio", 0.5, "ratio of workers to use for UDP scanning (0.0-1.0)")
 	scanCmd.Flags().BoolP("banners", "b", false, "grab service banners")
 
 	// Output flags
@@ -86,9 +97,11 @@ func init() {
 
 	_ = viper.BindPFlag("ports", scanCmd.Flags().Lookup("ports"))
 	_ = viper.BindPFlag("profile", scanCmd.Flags().Lookup("profile"))
+	_ = viper.BindPFlag("protocol", scanCmd.Flags().Lookup("protocol"))
 	_ = viper.BindPFlag("rate", scanCmd.Flags().Lookup("rate"))
 	_ = viper.BindPFlag("timeout_ms", scanCmd.Flags().Lookup("timeout"))
 	_ = viper.BindPFlag("workers", scanCmd.Flags().Lookup("workers"))
+	_ = viper.BindPFlag("udp_worker_ratio", scanCmd.Flags().Lookup("udp-worker-ratio"))
 	_ = viper.BindPFlag("banners", scanCmd.Flags().Lookup("banners"))
 	_ = viper.BindPFlag("output", scanCmd.Flags().Lookup("output"))
 	_ = viper.BindPFlag("stdin", scanCmd.Flags().Lookup("stdin"))
@@ -186,14 +199,57 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}()
 
 	scannerCfg := &core.Config{
-		Workers:    cfg.Workers,
-		Timeout:    cfg.GetTimeout(),
-		RateLimit:  cfg.Rate,
-		BannerGrab: cfg.Banners,
-		MaxRetries: 2,
+		Workers:        cfg.Workers,
+		Timeout:        cfg.GetTimeout(),
+		RateLimit:      cfg.Rate,
+		BannerGrab:     cfg.Banners,
+		MaxRetries:     2,
+		UDPWorkerRatio: cfg.UDPWorkerRatio,
 	}
 
-	scanner := core.NewScanner(scannerCfg)
+	// Create scanners based on protocol selection
+	protocol := cfg.Protocol
+	if protocol == "" {
+		protocol = "tcp"
+	}
+
+	switch protocol {
+	case "udp":
+		// UDP-only scanning
+		scanner := core.NewUDPScanner(scannerCfg)
+		return runProtocolScan(ctx, scanner, target, ports, cfg, "udp")
+
+	case "both":
+		// Run both TCP and UDP scans
+		// First run TCP scan
+		tcpScanner := core.NewScanner(scannerCfg)
+		if err := runProtocolScan(ctx, tcpScanner, target, ports, cfg, "tcp"); err != nil {
+			return err
+		}
+		// Then run UDP scan
+		udpScanner := core.NewUDPScanner(scannerCfg)
+		return runProtocolScan(ctx, udpScanner, target, ports, cfg, "udp")
+
+	default:
+		// TCP-only scanning (default)
+		scanner := core.NewScanner(scannerCfg)
+		return runProtocolScan(ctx, scanner, target, ports, cfg, "tcp")
+	}
+}
+
+func runProtocolScan(ctx context.Context, scanner interface{}, target string, ports []uint16, cfg *config.Config, _ string) error {
+	// Handle different scanner types
+	var results <-chan interface{}
+	switch s := scanner.(type) {
+	case *core.Scanner:
+		results = s.Results()
+		go s.ScanRange(ctx, target, ports)
+	case *core.UDPScanner:
+		results = s.Results()
+		go s.ScanRange(ctx, target, ports)
+	default:
+		return fmt.Errorf("unsupported scanner type")
+	}
 
 	if viper.GetBool("json") || cfg.Output == "json" {
 		var exp *exporter.JSONExporter
@@ -209,9 +265,8 @@ func runScan(cmd *cobra.Command, args []string) error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			exp.Export(scanner.Results())
+			exp.Export(results)
 		}()
-		scanner.ScanRange(ctx, target, ports)
 		wg.Wait()
 		_ = exp.Close()
 	} else if cfg.Output == "csv" {
@@ -220,16 +275,14 @@ func runScan(cmd *cobra.Command, args []string) error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			exp.Export(scanner.Results())
+			exp.Export(results)
 		}()
-		scanner.ScanRange(ctx, target, ports)
 		wg.Wait()
 		_ = exp.Close()
 	} else {
 		// Use Enhanced TUI
 		onlyOpen := viper.GetBool("only_open")
-		tui := ui.NewEnhancedUI(cfg, len(ports), scanner.Results(), onlyOpen)
-		go scanner.ScanRange(ctx, target, ports)
+		tui := ui.NewEnhancedUI(cfg, len(ports), results, onlyOpen)
 		return tui.Run()
 	}
 

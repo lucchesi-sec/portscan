@@ -8,13 +8,15 @@ import (
 )
 
 type Config struct {
-	Rate      int      `mapstructure:"rate" validate:"min=1,max=100000"`
-	Ports     string   `mapstructure:"ports"`
-	TimeoutMs int      `mapstructure:"timeout_ms" validate:"min=1,max=10000"`
-	Workers   int      `mapstructure:"workers" validate:"min=0,max=1000"` // 0 means auto-detect
-	Output    string   `mapstructure:"output" validate:"omitempty,oneof=json csv prometheus table"`
-	Banners   bool     `mapstructure:"banners"`
-	UI        UIConfig `mapstructure:"ui"`
+	Rate           int      `mapstructure:"rate" validate:"min=1,max=100000"`
+	Ports          string   `mapstructure:"ports"`
+	TimeoutMs      int      `mapstructure:"timeout_ms" validate:"min=1,max=10000"`
+	Workers        int      `mapstructure:"workers" validate:"min=0,max=1000"` // 0 means auto-detect
+	Output         string   `mapstructure:"output" validate:"omitempty,oneof=json csv prometheus table"`
+	Banners        bool     `mapstructure:"banners"`
+	Protocol       string   `mapstructure:"protocol" validate:"omitempty,oneof=tcp udp both"` // Scan protocol
+	UDPWorkerRatio float64  `mapstructure:"udp_worker_ratio" validate:"min=-1.0,max=1.0"`     // Ratio of workers for UDP (-1=default, 0=disable, 0.1-1.0=ratio)
+	UI             UIConfig `mapstructure:"ui"`
 }
 
 type UIConfig struct {
@@ -31,6 +33,8 @@ func Load() (*Config, error) {
 	viper.SetDefault("workers", 100)
 	viper.SetDefault("output", "")
 	viper.SetDefault("banners", false)
+	viper.SetDefault("protocol", "tcp")
+	viper.SetDefault("udp_worker_ratio", -1.0) // -1 means use default behavior (half of TCP workers)
 	viper.SetDefault("ui.theme", "default")
 
 	if err := viper.Unmarshal(&cfg); err != nil {

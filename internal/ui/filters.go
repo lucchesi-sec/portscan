@@ -9,13 +9,13 @@ import (
 
 // FilterState represents the current filter configuration
 type FilterState struct {
-	StateFilter    StateFilterType
-	PortRangeMin   uint16
-	PortRangeMax   uint16
-	ServiceFilter  string
-	LatencyMax     int // milliseconds, 0 = no filter
-	BannerSearch   string
-	IsActive       bool
+	StateFilter   StateFilterType
+	PortRangeMin  uint16
+	PortRangeMax  uint16
+	ServiceFilter string
+	LatencyMax    int // milliseconds, 0 = no filter
+	BannerSearch  string
+	IsActive      bool
 }
 
 // StateFilterType represents which states to show
