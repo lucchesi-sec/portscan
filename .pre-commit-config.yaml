@@ -9,7 +9,7 @@
 minimum_pre_commit_version: '3.0.0'
 
 # Run these on commit; you can also run manually in CI if desired.
-default_stages: [commit]
+default_stages: [pre-commit]
 
 # Global excludes (keep fast, skip vendored/generated)
 exclude: |
@@ -38,17 +38,17 @@ repos:
         name: gofumpt + goimports
         language: system
         types: [go]
-        stages: [commit]
+        stages: [pre-commit]
         pass_filenames: true
         # Format only the staged Go files for speed.
-        entry: bash -c 'gofumpt -w "$@" && goimports -w "$@"'
+        entry: bash -c 'export PATH=$PATH:$(go env GOPATH)/bin && gofumpt -w "$@" && goimports -w "$@"'
 
       # 2) Lint (uses existing .golangci.yml)
       - id: golangci-lint
         name: golangci-lint
         language: system
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
         entry: golangci-lint run ./...
 
       # 3) Build/type-check (fast)
@@ -56,7 +56,7 @@ repos:
         name: go build (type check)
         language: system
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
         entry: go build ./...
 
       # 4) Unit tests (short)
@@ -64,7 +64,7 @@ repos:
         name: go test (short)
         language: system
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
         entry: go test -short ./...
 
       # 5) Go module tidy check (ensures go.mod/go.sum are clean)
@@ -72,7 +72,7 @@ repos:
         name: go mod tidy (clean tree)
         language: system
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
         entry: go mod tidy
 
       # 6) Go generate drift check (optional; skip if not used)
@@ -80,13 +80,13 @@ repos:
         name: go generate (no diff)
         language: system
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
         entry: bash -c 'set -e; go generate ./... >/dev/null 2>&1 || true; if ! git diff --quiet; then echo "go generate produced changes. Commit generated files."; git --no-pager diff; exit 1; fi'
 
       # 7) Pre-push quick tests with race detector
       - id: go-test-pre-push
         name: go test (pre-push, race+short)
         language: system
-        stages: [push]
+        stages: [pre-push]
         pass_filenames: false
         entry: bash -c 'go test -race -short ./...'

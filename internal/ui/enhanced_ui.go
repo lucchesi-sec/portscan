@@ -76,8 +76,8 @@ type EnhancedUI struct {
 	currentRate   float64
 
 	// Sorting and Filtering
-	sortState   *SortState
-	filterState *FilterState
+	sortState      *SortState
+	filterState    *FilterState
 	displayResults []core.ResultEvent // Filtered/sorted view of results
 }
 
@@ -229,22 +229,22 @@ func NewEnhancedUI(cfg *config.Config, totalPorts int, results <-chan interface{
 	}
 
 	return &EnhancedUI{
-		config:        cfg,
-		theme:         t,
-		results:       []core.ResultEvent{},
-		resultChan:    results,
-		table:         tbl,
-		progressBar:   prog,
-		spinner:       spin,
-		help:          h,
-		keys:          defaultKeys,
-		progressTrack: NewProgressTracker(totalPorts),
-		scanning:      true,
-		totalPorts:    totalPorts,
-		viewState:     UIViewMain,
-		showOnlyOpen:  onlyOpen,
-		sortState:     sortState,
-		filterState:   filterState,
+		config:         cfg,
+		theme:          t,
+		results:        []core.ResultEvent{},
+		resultChan:     results,
+		table:          tbl,
+		progressBar:    prog,
+		spinner:        spin,
+		help:           h,
+		keys:           defaultKeys,
+		progressTrack:  NewProgressTracker(totalPorts),
+		scanning:       true,
+		totalPorts:     totalPorts,
+		viewState:      UIViewMain,
+		showOnlyOpen:   onlyOpen,
+		sortState:      sortState,
+		filterState:    filterState,
 		displayResults: []core.ResultEvent{},
 	}
 }
@@ -333,21 +333,27 @@ func (m *EnhancedUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			case key.Matches(msg, m.keys.Up):
 				m.table.MoveUp(1)
+				return m, nil
 
 			case key.Matches(msg, m.keys.Down):
 				m.table.MoveDown(1)
+				return m, nil
 
 			case key.Matches(msg, m.keys.PageUp):
 				m.table.MoveUp(10)
+				return m, nil
 
 			case key.Matches(msg, m.keys.PageDown):
 				m.table.MoveDown(10)
+				return m, nil
 
 			case key.Matches(msg, m.keys.Home):
 				m.table.GotoTop()
+				return m, nil
 
 			case key.Matches(msg, m.keys.End):
 				m.table.GotoBottom()
+				return m, nil
 			}
 
 		case UIViewSortMenu:
