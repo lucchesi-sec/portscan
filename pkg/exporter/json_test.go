@@ -23,7 +23,6 @@ type resultDTO struct {
 func TestJSONExporterStreamsNDJSON(t *testing.T) {
 	var buf bytes.Buffer
 	w := bufio.NewWriter(&buf)
-	defer w.Flush()
 
 	exporter := NewJSONExporter(w)
 	ch := make(chan interface{}, 3)
@@ -57,5 +56,23 @@ func TestJSONExporterStreamsNDJSON(t *testing.T) {
 	}
 	if r2.Port != 22 || r2.State != string(core.StateClosed) {
 		t.Errorf("unexpected second record: %+v", r2)
+	}
+}
+
+func TestJSONExporterEmptyInputNDJSON(t *testing.T) {
+	var buf bytes.Buffer
+	w := bufio.NewWriter(&buf)
+
+	exporter := NewJSONExporter(w)
+	ch := make(chan interface{})
+	close(ch)
+
+	exporter.Export(ch)
+	_ = exporter.Close()
+	_ = w.Flush()
+
+	output := strings.TrimSpace(buf.String())
+	if output != "" {
+		t.Errorf("expected empty output for empty input channel, got: %q", output)
 	}
 }

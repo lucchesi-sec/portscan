@@ -39,3 +39,30 @@ func TestJSONExporterObjectMode(t *testing.T) {
 		t.Errorf("unexpected scan_info: %+v", obj.ScanInfo)
 	}
 }
+
+func TestJSONExporterObjectModeEmptyResults(t *testing.T) {
+	var buf bytes.Buffer
+	exp := NewJSONExporterObject(&buf, "10.0.0.1", 100, 5000)
+	ch := make(chan interface{})
+	close(ch)
+
+	exp.Export(ch)
+	_ = exp.Close()
+
+	var obj struct {
+		Results  []map[string]interface{} `json:"results"`
+		ScanInfo map[string]interface{}   `json:"scan_info"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &obj); err != nil {
+		t.Fatalf("object mode output not valid JSON object: %v\n%s", err, buf.String())
+	}
+	if len(obj.Results) != 0 {
+		t.Fatalf("expected empty results array, got %d results", len(obj.Results))
+	}
+	if obj.ScanInfo["target"].(string) != "10.0.0.1" {
+		t.Errorf("unexpected target: %v", obj.ScanInfo["target"])
+	}
+	if int(obj.ScanInfo["total_ports"].(float64)) != 100 || int(obj.ScanInfo["scan_rate"].(float64)) != 5000 {
+		t.Errorf("unexpected scan_info: %+v", obj.ScanInfo)
+	}
+}
