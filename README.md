@@ -43,11 +43,6 @@ curl -sSL https://github.com/lucchesi-sec/portscan/releases/latest/download/port
 curl -sSL https://github.com/lucchesi-sec/portscan/releases/latest/download/portscan-windows-amd64.zip -o portscan.zip
 ```
 
-#### Via Homebrew
-```bash
-brew tap lucchesi-sec/tap
-brew install portscan
-```
 
 ### Basic Usage
 
@@ -108,13 +103,13 @@ Usage:
 Flags:
   -p, --ports string      Ports to scan (default "1-1024")
                          Examples: "80,443,8080" or "1-1024" or "1-1000,8000-9000"
-  -P, --profile string   Scan profile: quick, web, database, gateway, udp-common, voip, full
+  -P, --profile string   Scan profile: quick, web, database, gateway, udp-common, full
   -u, --protocol string  Protocol to scan: tcp (default), udp, or both
   -r, --rate int         Packets per second rate limit (default 7500)
   -t, --timeout int      Connection timeout in milliseconds (default 200)
   -w, --workers int      Number of concurrent workers (default 100)
   -b, --banners          Grab service banners
-  -o, --output string    Output format: json, csv, prometheus
+  -o, --output string    Output format: json, csv
       --json             Output results as JSON to stdout
   -s, --stdin            Read targets from stdin
       --ui.theme string  UI theme: default, dracula, monokai (default "default")
@@ -209,15 +204,14 @@ portscan scan 192.168.1.1 --protocol both --profile gateway
 # Scan specific UDP ports
 portscan scan router.local --protocol udp --ports 53,67,68,123,161,1194
 
-# VoIP service discovery
-portscan scan pbx.company.com --protocol udp --profile voip
+# Gateway service discovery
+portscan scan pbx.company.com --protocol udp --profile gateway
 ```
 
 ### Available UDP Profiles
 
 - **udp-common**: DNS, DHCP, NTP, SNMP, OpenVPN, WireGuard
 - **gateway**: Router/gateway services (TCP & UDP)
-- **voip**: SIP, RTP, STUN, IAX2 and telephony services
 
 ### UDP Service Detection
 
@@ -258,7 +252,7 @@ PortScan automatically detects and identifies common UDP services:
 **Core Components:**
 - **Scanner Engine**: High-performance worker pool with rate limiting
 - **TUI Framework**: Built with Charm's Bubble Tea ecosystem
-- **Export System**: Pluggable output formats
+- **Export System**: JSON and CSV output formats
 - **Configuration**: Hierarchical config management
 
 ## 🚄 Performance
@@ -315,7 +309,7 @@ portscan/
 │   └── ui/             # Bubble Tea TUI components
 ├── pkg/
 │   ├── config/         # Configuration management
-│   ├── exporter/       # Output format exporters
+│   ├── exporter/       # Output format exporters (JSON/CSV)
 │   ├── parser/         # Input parsing utilities
 │   └── theme/          # UI themes and styling
 ├── scripts/            # Development and build scripts
@@ -400,7 +394,7 @@ PORTSCAN_DEBUG=1 go run cmd/main.go scan localhost
 ## 📊 Roadmap
 
 - [ ] **v0.3.0**: SQLite export, Web UI, SSH TUI serving
-- [ ] **v0.4.0**: UDP scanning, IPv6 support
+- [ ] **v0.4.0**: IPv6 support
 - [ ] **v1.0.0**: SYN scanning, plugin architecture, vulnerability detection
 
 ## 📜 License
