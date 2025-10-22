@@ -141,7 +141,7 @@ func TestUDPScannerIntegration(t *testing.T) {
 	defer cancel()
 
 	resultChan := scanner.Results()
-	go scanner.ScanRangeUDP(ctx, "127.0.0.1", []uint16{port})
+	go scanner.ScanRange(ctx, "127.0.0.1", []uint16{port})
 
 	// Wait for result
 	timeout := time.After(3 * time.Second)
@@ -149,19 +149,18 @@ func TestUDPScannerIntegration(t *testing.T) {
 
 	for !foundResult {
 		select {
-		case result := <-resultChan:
-			// Print the type for debugging
-			t.Logf("Result type: %T", result)
-			if r, ok := result.(ResultEvent); ok {
-				if r.Port != port {
-					t.Errorf("Expected port %d, got %d", port, r.Port)
-				}
-				if r.Protocol != "udp" {
-					t.Errorf("Expected protocol udp, got %s", r.Protocol)
-				}
-				foundResult = true
+		case event := <-resultChan:
+			if event.Type != EventTypeResult {
+				continue
 			}
-			// Ignore ProgressEvent and continue waiting for ResultEvent
+			r := event.Result
+			if r.Port != port {
+				t.Errorf("Expected port %d, got %d", port, r.Port)
+			}
+			if r.Protocol != "udp" {
+				t.Errorf("Expected protocol udp, got %s", r.Protocol)
+			}
+			foundResult = true
 		case <-timeout:
 			t.Error("Timeout waiting for scan result")
 			return
@@ -255,7 +254,7 @@ func TestUDPScannerContextCancellation(t *testing.T) {
 
 	// Run scan with cancelled context
 	resultChan := scanner.Results()
-	go scanner.ScanRangeUDP(ctx, "127.0.0.1", []uint16{53})
+	go scanner.ScanRange(ctx, "127.0.0.1", []uint16{53})
 
 	// Should return quickly due to cancellation
 	select {
@@ -310,7 +309,7 @@ func BenchmarkUDPScanning(b *testing.B) {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			scanner.ScanRangeUDP(ctx, "127.0.0.1", ports)
+			scanner.ScanRange(ctx, "127.0.0.1", ports)
 		}()
 
 		// Drain results in this goroutine

@@ -1,55 +1,46 @@
-version: "2"
-
 run:
-  timeout: 5m
+  timeout: 3m
+  issues-exit-code: 1
   tests: true
+
+linters-settings:
+  gofumpt:
+    module-path: github.com/lucchesi-sec/portscan
+  revive:
+    ignore-generated-header: true
+    severity: warning
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: error-naming
+      - name: exported
+        arguments: ["checkPrivateReceivers"]
+      - name: indent-error-flow
+      - name: var-naming
+  gocyclo:
+    min-complexity: 20
+  govet:
+    check-shadowing: true
 
 linters:
   enable:
     - govet
     - staticcheck
-    - errcheck
-    - ineffassign
-    - unconvert
-    - misspell
-    - unparam
-    - bodyclose
-  disable:
+    - gofumpt
+    - goimports
     - revive
-    - gocritic
+    - gocyclo
+    - misspell
+    - nilerr
     - prealloc
-
-linters-settings:
-  govet:
-    enable:
-      - shadow
-  revive:
-    confidence: 0.8
-  gosec:
-    severity: medium
-    confidence: medium
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
+  disable:
+    - errcheck
 
 issues:
   exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-dirs:
-    - vendor
-    - .git
-    - .github
   exclude-rules:
-    - path: _test\.go
+    - path: _test.go
       linters:
-        - gosec
-        - errcheck
-    - path: pkg/parser/ports.go
-      linters:
-        - gosec
-      text: "G115: integer overflow conversion"
+        - gocyclo

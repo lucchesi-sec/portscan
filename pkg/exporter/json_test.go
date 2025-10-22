@@ -25,12 +25,12 @@ func TestJSONExporterStreamsNDJSON(t *testing.T) {
 	w := bufio.NewWriter(&buf)
 
 	exporter := NewJSONExporter(w)
-	ch := make(chan interface{}, 3)
+	ch := make(chan core.Event, 3)
 
 	// Send two results and a progress event in between
-	ch <- core.ResultEvent{Host: "127.0.0.1", Port: 80, State: core.StateOpen, Banner: "HTTP", Duration: 150 * time.Millisecond}
-	ch <- core.ProgressEvent{Total: 2, Completed: 1, Rate: 10}
-	ch <- core.ResultEvent{Host: "127.0.0.1", Port: 22, State: core.StateClosed, Banner: "", Duration: 20 * time.Millisecond}
+	ch <- core.Event{Type: core.EventTypeResult, Result: core.ResultEvent{Host: "127.0.0.1", Port: 80, State: core.StateOpen, Banner: "HTTP", Duration: 150 * time.Millisecond}}
+	ch <- core.Event{Type: core.EventTypeProgress, Progress: core.ProgressEvent{Total: 2, Completed: 1, Rate: 10}}
+	ch <- core.Event{Type: core.EventTypeResult, Result: core.ResultEvent{Host: "127.0.0.1", Port: 22, State: core.StateClosed, Banner: "", Duration: 20 * time.Millisecond}}
 	close(ch)
 
 	exporter.Export(ch)
@@ -64,7 +64,7 @@ func TestJSONExporterEmptyInputNDJSON(t *testing.T) {
 	w := bufio.NewWriter(&buf)
 
 	exporter := NewJSONExporter(w)
-	ch := make(chan interface{})
+	ch := make(chan core.Event)
 	close(ch)
 
 	exporter.Export(ch)

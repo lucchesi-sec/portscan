@@ -11,6 +11,7 @@ import (
 type CSVExporter struct {
 	writer    io.Writer
 	csvWriter *csv.Writer
+	writeErr  error
 }
 
 func NewCSVExporter(w io.Writer) *CSVExporter {
@@ -23,22 +24,31 @@ func NewCSVExporter(w io.Writer) *CSVExporter {
 	}
 }
 
-func (e *CSVExporter) Export(results <-chan interface{}) {
-	for result := range results {
-		if r, ok := result.(core.ResultEvent); ok {
-			record := []string{
-				r.Host,
-				fmt.Sprintf("%d", r.Port),
-				string(r.State),
-				r.Banner,
-				fmt.Sprintf("%d", r.Duration.Milliseconds()),
-			}
-			_ = e.csvWriter.Write(record)
+func (e *CSVExporter) Export(events <-chan core.Event) {
+	for event := range events {
+		if event.Type != core.EventTypeResult {
+			continue
+		}
+
+		r := event.Result
+		record := []string{
+			r.Host,
+			fmt.Sprintf("%d", r.Port),
+			string(r.State),
+			r.Banner,
+			fmt.Sprintf("%d", r.Duration.Milliseconds()),
+		}
+		if err := e.csvWriter.Write(record); err != nil {
+			e.writeErr = err
+			return
 		}
 	}
 }
 
 func (e *CSVExporter) Close() error {
 	e.csvWriter.Flush()
-	return e.csvWriter.Error()
+	if err := e.csvWriter.Error(); err != nil {
+		return err
+	}
+	return e.writeErr
 }

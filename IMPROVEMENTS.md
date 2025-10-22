@@ -90,13 +90,13 @@ Status: Done (follow-up: propagate write errors explicitly)
 ## UI/UX Issues
 
 ### 11. Multiple UI Models
-**Issue**: Three different UI models exist (Model, EnhancedUI, EnhancedModel)
+**Issue**: Three different UI models exist (Model, ScanUI, EnhancedModel)
 **Location**: `internal/ui/`
 **Fix**: Consolidate to single model with all features
 
 ### 12. Hidden Closed Ports
 **Issue**: Table only shows open ports; toggle exists but not wired
-**Location**: `internal/ui/enhanced_ui.go`
+**Location**: `internal/ui/scan_ui_view.go`
 **Fix**: Wire 'v' toggle to show all port states
  
 ### 12a. Unbounded Result Growth in TUI

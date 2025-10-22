@@ -71,6 +71,16 @@ func InvalidTargetError(target string, err error) *UserError {
 	}
 }
 
+func InvalidTargetListError(err error) *UserError {
+	return &UserError{
+		Code:       "INVALID_TARGET_LIST",
+		Message:    "Unable to resolve one or more targets",
+		Details:    err.Error(),
+		Suggestion: "Verify hostnames/IPs, reduce CIDR size, or split very large scans into smaller batches",
+		WrappedErr: err,
+	}
+}
+
 func ConfigLoadError(path string, err error) *UserError {
 	return &UserError{
 		Code:       "CONFIG_ERROR",

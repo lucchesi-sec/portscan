@@ -15,15 +15,15 @@
 
 ## ✨ Features
 
-- **🔥 Blazing Fast** - Scan 7,500+ ports/second with intelligent rate limiting
-- **🎨 Beautiful TUI** - Real-time progress bars, sortable tables, and live metrics
-- **🌐 Network-Aware** - CIDR notation, DNS resolution, and adaptive timeouts
-- **🔍 Service Detection** - Banner grabbing for service identification
-- **🌊 UDP Support** - Comprehensive UDP scanning with service-specific probes
-- **📊 Multiple Outputs** - JSON, CSV exports or interactive terminal display
-- **⚡ Resource Efficient** - <50MB memory usage for /24 network scans
-- **🛡️ Security-First** - Rate limiting, privilege dropping, audit logging
-- **📦 Cross-Platform** - Linux, macOS, Windows binaries available
+- **🔥 Blazing Fast** – Scan 7,500+ ports/second with intelligent rate limiting
+- **🎨 Beautiful TUI** – Real-time progress bars, sortable tables, and live metrics
+- **🌐 Multi-Target Aware** – Pass multiple hosts, CIDRs, or stdin lists in one scan
+- **🔍 Service Detection** – Banner grabbing helps identify running services
+- **🌊 UDP Support** – Comprehensive UDP scanning with service-specific probes
+- **📊 Streaming Exports** – NDJSON, JSON array/object, and CSV without buffering
+- **⚡ Resource Efficient** – <50 MB memory usage for /24 network scans
+- **🛡️ Sensible Defaults** – Built-in rate limiting and safe retry/backoff behaviour
+- **📦 Cross-Platform** – Linux, macOS, Windows binaries available
 
 ## 🎯 Quick Start
 
@@ -50,8 +50,11 @@ curl -sSL https://github.com/lucchesi-sec/portscan/releases/latest/download/port
 # Scan common ports on localhost
 portscan scan localhost
 
-# Scan specific ports
-portscan scan 192.168.1.1 --ports 22,80,443,8080
+# Scan multiple targets at once
+portscan scan api.internal db.internal 192.168.1.10 --ports 80,443,5432
+
+# Read targets from stdin (whitespace or newline separated)
+cat targets.txt | portscan scan --stdin --profile quick
 
 # Scan port range with banner grabbing
 portscan scan 10.0.0.0/24 --ports 1-1024 --banners
@@ -72,7 +75,7 @@ The TUI provides real-time visualization of scan progress:
 
 ```
 ┌─ Port Scanner ───────────────────────────────────────────────────────────-──┐
-│ Target: 192.168.1.0/24        Ports: 1-1024        Rate: 7500 pps           │
+│ Targets: 192.168.1.0/24 (1024 ports)       Rate: 7500 pps                  │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ Progress: ████████████████████░░░░  82% (840/1024)   ETA: 00:23             │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -98,7 +101,7 @@ The TUI provides real-time visualization of scan progress:
 
 ```bash
 Usage:
-  portscan scan [target] [flags]
+  portscan scan [targets...] [flags]
 
 Flags:
   -p, --ports string      Ports to scan (default "1-1024")
@@ -111,11 +114,9 @@ Flags:
   -b, --banners          Grab service banners
   -o, --output string    Output format: json, csv
       --json             Output results as JSON to stdout
-  -s, --stdin            Read targets from stdin
+  -s, --stdin            Read whitespace/newline separated targets from stdin
       --ui.theme string  UI theme: default, dracula, monokai (default "default")
       --config string    Config file path (default "~/.portscan.yaml")
-```
-
 ## 🔧 Configuration
 
 Create `~/.portscan.yaml` for persistent settings:
@@ -135,11 +136,16 @@ output: ""               # default to TUI
 ui:
   theme: dracula
 
-# Network settings
-dns:
-  timeout_ms: 1000
-  servers: ["1.1.1.1", "8.8.8.8"]
 ```
+
+### Target Input
+
+- **Positional arguments** – `portscan scan host1 host2 192.168.1.10`
+- **CIDR notation** – automatically expands (defaults to max 65,536 hosts per CIDR)
+- **Standard input** – `cat targets.txt | portscan scan --stdin`
+  - Input is tokenised on whitespace, so files can be space or newline separated.
+
+Duplicate hosts are removed automatically before scanning.
 
 ## 📤 Export Formats
 
@@ -165,9 +171,18 @@ portscan scan 192.168.1.1 --json --json-object > results.json
 Example output shape:
 ```json
 {
-  "results": [ { "host": "192.168.1.1", "port": 22, "state": "open", "service": "ssh", "banner": "SSH-2.0-OpenSSH_8.9p1", "response_time_ms": 5.2 } ],
+  "results": [
+    {
+      "host": "192.168.1.1",
+      "port": 22,
+      "state": "open",
+      "service": "ssh",
+      "banner": "SSH-2.0-OpenSSH_8.9p1",
+      "response_time_ms": 5.2
+    }
+  ],
   "scan_info": {
-    "target": "192.168.1.1",
+    "targets": ["192.168.1.1"],
     "start_time": "2025-01-15T10:30:00Z",
     "end_time": "2025-01-15T10:30:45Z",
     "total_ports": 1024,
@@ -389,7 +404,12 @@ make dev
 
 # Debug with verbose logging
 PORTSCAN_DEBUG=1 go run cmd/main.go scan localhost
+
+# Run lint suite
+make lint
 ```
+
+`make dev-setup` installs `golangci-lint` (running Staticcheck, gofumpt, revive, etc.), the Go language server `gopls`, and other helpers so editors and CI share the same tooling.
 
 ## 📊 Roadmap
 

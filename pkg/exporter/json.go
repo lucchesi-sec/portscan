@@ -16,9 +16,13 @@ type JSONExporter struct {
 	arrayMode  bool
 	objectMode bool
 	// metadata for object mode
-	target     string
-	totalPorts int
-	scanRate   int
+	metadata ScanMetadata
+}
+
+type ScanMetadata struct {
+	Targets    []string
+	TotalPorts int
+	Rate       int
 }
 
 // buildResultDTO creates a consistent DTO from a ResultEvent
@@ -43,8 +47,9 @@ func buildResultDTO(r core.ResultEvent) map[string]interface{} {
 
 func NewJSONExporter(w io.Writer) *JSONExporter {
 	return &JSONExporter{
-		writer:  w,
-		encoder: json.NewEncoder(w),
+		writer:   w,
+		encoder:  json.NewEncoder(w),
+		metadata: ScanMetadata{},
 	}
 }
 
@@ -55,6 +60,7 @@ func NewJSONExporterArray(w io.Writer) *JSONExporter {
 		writer:    w,
 		encoder:   json.NewEncoder(w),
 		arrayMode: true,
+		metadata:  ScanMetadata{},
 	}
 }
 
@@ -66,23 +72,40 @@ func NewJSONExporterObject(w io.Writer, target string, totalPorts int, scanRate 
 		writer:     w,
 		encoder:    json.NewEncoder(w),
 		objectMode: true,
-		target:     target,
-		totalPorts: totalPorts,
-		scanRate:   scanRate,
+		metadata: ScanMetadata{
+			Targets:    []string{target},
+			TotalPorts: totalPorts,
+			Rate:       scanRate,
+		},
 	}
 }
 
-func (e *JSONExporter) Export(results <-chan interface{}) {
+func NewJSONExporterObjectWithMetadata(w io.Writer, meta ScanMetadata) *JSONExporter {
+	copyTargets := make([]string, len(meta.Targets))
+	copy(copyTargets, meta.Targets)
+	return &JSONExporter{
+		writer:     w,
+		encoder:    json.NewEncoder(w),
+		objectMode: true,
+		metadata: ScanMetadata{
+			Targets:    copyTargets,
+			TotalPorts: meta.TotalPorts,
+			Rate:       meta.Rate,
+		},
+	}
+}
+
+func (e *JSONExporter) Export(events <-chan core.Event) {
 	if e.objectMode {
 		// Write opening object with results array first; scan_info appended at end.
 		_, _ = e.writer.Write([]byte("{\n\"results\": ["))
 		first := true
 		startTime := time.Now()
-		for result := range results {
-			r, ok := result.(core.ResultEvent)
-			if !ok {
+		for event := range events {
+			if event.Type != core.EventTypeResult {
 				continue
 			}
+			r := event.Result
 			dto := buildResultDTO(r)
 
 			if !first {
@@ -98,11 +121,11 @@ func (e *JSONExporter) Export(results <-chan interface{}) {
 		_, _ = e.writer.Write([]byte("]"))
 		// Append scan_info metadata
 		info := map[string]interface{}{
-			"target":      e.target,
+			"targets":     e.metadata.Targets,
 			"start_time":  startTime.UTC().Format(time.RFC3339),
 			"end_time":    endTime.UTC().Format(time.RFC3339),
-			"total_ports": e.totalPorts,
-			"scan_rate":   e.scanRate,
+			"total_ports": e.metadata.TotalPorts,
+			"scan_rate":   e.metadata.Rate,
 		}
 		b, err := json.Marshal(info)
 		if err == nil {
@@ -118,11 +141,11 @@ func (e *JSONExporter) Export(results <-chan interface{}) {
 		// We manually manage commas to avoid buffering.
 		_, _ = e.writer.Write([]byte("["))
 		first := true
-		for result := range results {
-			r, ok := result.(core.ResultEvent)
-			if !ok {
+		for event := range events {
+			if event.Type != core.EventTypeResult {
 				continue
 			}
+			r := event.Result
 			dto := buildResultDTO(r)
 
 			if !first {
@@ -140,14 +163,14 @@ func (e *JSONExporter) Export(results <-chan interface{}) {
 	}
 
 	// Default: Stream each result as a single JSON object per line (NDJSON)
-	for result := range results {
-		if r, ok := result.(core.ResultEvent); ok {
-			dto := buildResultDTO(r)
-
-			// Best-effort encode; callers can check write errors on the underlying writer if needed.
-			_ = e.encoder.Encode(dto)
+	for event := range events {
+		if event.Type != core.EventTypeResult {
+			continue
 		}
-		// Ignore non-result events (e.g., progress) for JSON export
+		dto := buildResultDTO(event.Result)
+
+		// Best-effort encode; callers can check write errors on the underlying writer if needed.
+		_ = e.encoder.Encode(dto)
 	}
 }
 

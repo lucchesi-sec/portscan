@@ -148,7 +148,11 @@ func GetProfile(name string) []uint16 {
 		return ports
 	}
 
-	return profiles[name]
+	if ports, ok := profiles[name]; ok {
+		return dedupePorts(ports)
+	}
+
+	return nil
 }
 
 // ListProfiles returns all available profile names
@@ -158,4 +162,17 @@ func ListProfiles() []string {
 		names = append(names, name)
 	}
 	return names
+}
+
+func dedupePorts(ports []uint16) []uint16 {
+	seen := make(map[uint16]struct{}, len(ports))
+	result := make([]uint16, 0, len(ports))
+	for _, port := range ports {
+		if _, exists := seen[port]; exists {
+			continue
+		}
+		seen[port] = struct{}{}
+		result = append(result, port)
+	}
+	return result
 }

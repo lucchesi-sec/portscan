@@ -13,6 +13,7 @@ type SortMode int
 const (
 	SortByPort SortMode = iota
 	SortByPortDesc
+	SortByHost
 	SortByState
 	SortByService
 	SortByLatency
@@ -49,6 +50,14 @@ func (s *SortState) ApplySort(results []core.ResultEvent) []core.ResultEvent {
 	case SortByPortDesc:
 		sort.Slice(sorted, func(i, j int) bool {
 			return sorted[i].Port > sorted[j].Port
+		})
+
+	case SortByHost:
+		sort.Slice(sorted, func(i, j int) bool {
+			if strings.EqualFold(sorted[i].Host, sorted[j].Host) {
+				return sorted[i].Port < sorted[j].Port
+			}
+			return strings.ToLower(sorted[i].Host) < strings.ToLower(sorted[j].Host)
 		})
 
 	case SortByState:
@@ -126,6 +135,8 @@ func (s *SortState) GetModeString() string {
 		return "Port ↑"
 	case SortByPortDesc:
 		return "Port ↓"
+	case SortByHost:
+		return "Host"
 	case SortByState:
 		return "State"
 	case SortByService:
@@ -155,6 +166,8 @@ func (s *SortState) NextSortMode() {
 	case SortByPort:
 		s.Mode = SortByPortDesc
 	case SortByPortDesc:
+		s.Mode = SortByHost
+	case SortByHost:
 		s.Mode = SortByState
 	case SortByState:
 		s.Mode = SortByService
@@ -176,8 +189,10 @@ func (s *SortState) PreviousSortMode() {
 		s.Mode = SortByDiscovery
 	case SortByPortDesc:
 		s.Mode = SortByPort
-	case SortByState:
+	case SortByHost:
 		s.Mode = SortByPortDesc
+	case SortByState:
+		s.Mode = SortByHost
 	case SortByService:
 		s.Mode = SortByState
 	case SortByLatency:

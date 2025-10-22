@@ -7,62 +7,100 @@ import (
 )
 
 func ParsePorts(spec string) ([]uint16, error) {
-	var ports []uint16
-	seen := make(map[uint16]bool)
+	seen := make(map[uint16]struct{})
+	var result []uint16
 
-	parts := strings.Split(spec, ",")
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "" {
+	for _, token := range strings.Split(spec, ",") {
+		token = strings.TrimSpace(token)
+		if token == "" {
 			continue
 		}
 
-		if strings.Contains(part, "-") {
-			rangeParts := strings.Split(part, "-")
-			if len(rangeParts) != 2 {
-				return nil, fmt.Errorf("invalid port range: %s", part)
-			}
-
-			start, err := strconv.Atoi(strings.TrimSpace(rangeParts[0]))
-			if err != nil || start < 1 || start > 65535 {
-				return nil, fmt.Errorf("invalid start port in range: %s", rangeParts[0])
-			}
-
-			end, err := strconv.Atoi(strings.TrimSpace(rangeParts[1]))
-			if err != nil || end < 1 || end > 65535 {
-				return nil, fmt.Errorf("invalid end port in range: %s", rangeParts[1])
-			}
-
-			if start > end {
-				return nil, fmt.Errorf("invalid port range: start > end in %s", part)
-			}
-
-			// Ensure we don't overflow when converting to uint16
-			for p := start; p <= end && p <= 65535; p++ {
-				// Safe conversion: p is guaranteed to be in range [1, 65535] due to validation above
-				if p >= 1 && p <= 65535 {
-					port := uint16(p)
-					if !seen[port] {
-						ports = append(ports, port)
-						seen[port] = true
-					}
-				}
-			}
-		} else {
-			port, err := strconv.Atoi(part)
-			if err != nil || port < 1 || port > 65535 {
-				return nil, fmt.Errorf("invalid port: %s", part)
-			}
-			if !seen[uint16(port)] {
-				ports = append(ports, uint16(port))
-				seen[uint16(port)] = true
-			}
+		ports, err := parsePortToken(token)
+		if err != nil {
+			return nil, err
 		}
+
+		result = appendUniquePorts(result, ports, seen)
 	}
 
-	if len(ports) == 0 {
+	if len(result) == 0 {
 		return nil, fmt.Errorf("no valid ports specified")
 	}
 
-	return ports, nil
+	return result, nil
+}
+
+func parsePortToken(token string) ([]uint16, error) {
+	if strings.Contains(token, "-") {
+		start, end, err := parsePortRange(token)
+		if err != nil {
+			return nil, err
+		}
+		return buildPortRange(start, end), nil
+	}
+
+	port, err := parseSinglePort(token)
+	if err != nil {
+		return nil, err
+	}
+	return []uint16{port}, nil
+}
+
+func parseSinglePort(value string) (uint16, error) {
+	num, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || num < 1 || num > 65535 {
+		return 0, fmt.Errorf("invalid port: %s", value)
+	}
+	return uint16(num), nil
+}
+
+func parsePortRange(token string) (int, int, error) {
+	parts := strings.Split(token, "-")
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("invalid port range: %s", token)
+	}
+
+	start, err := parseRangeBoundary(parts[0], "start")
+	if err != nil {
+		return 0, 0, err
+	}
+
+	end, err := parseRangeBoundary(parts[1], "end")
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if start > end {
+		return 0, 0, fmt.Errorf("invalid port range: start > end in %s", token)
+	}
+
+	return start, end, nil
+}
+
+func parseRangeBoundary(value string, position string) (int, error) {
+	num, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || num < 1 || num > 65535 {
+		return 0, fmt.Errorf("invalid %s port in range: %s", position, value)
+	}
+	return num, nil
+}
+
+func buildPortRange(start, end int) []uint16 {
+	ports := make([]uint16, 0, end-start+1)
+	for p := start; p <= end && p <= 65535; p++ {
+		ports = append(ports, uint16(p))
+	}
+	return ports
+}
+
+func appendUniquePorts(dest []uint16, ports []uint16, seen map[uint16]struct{}) []uint16 {
+	for _, port := range ports {
+		if _, exists := seen[port]; exists {
+			continue
+		}
+		dest = append(dest, port)
+		seen[port] = struct{}{}
+	}
+	return dest
 }
