@@ -20,7 +20,8 @@ type Config struct {
 }
 
 type UIConfig struct {
-	Theme string `mapstructure:"theme" validate:"oneof=default dracula monokai"`
+	Theme            string `mapstructure:"theme" validate:"oneof=default dracula monokai"`
+	ResultBufferSize int    `mapstructure:"result_buffer_size" validate:"gte=0,lte=1000000"`
 }
 
 func Load() (*Config, error) {
@@ -36,6 +37,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("protocol", "tcp")
 	viper.SetDefault("udp_worker_ratio", -1.0) // -1 means use default behavior (half of TCP workers)
 	viper.SetDefault("ui.theme", "default")
+	viper.SetDefault("ui.result_buffer_size", 10000)
 
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, err

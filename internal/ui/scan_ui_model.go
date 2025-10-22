@@ -35,13 +35,102 @@ type scanProgressMsg struct {
 
 type scanCompleteMsg struct{}
 
+const defaultResultBufferSize = 10000
+
+// ResultBuffer maintains a fixed-size circular buffer of recent scan results.
+type ResultBuffer struct {
+	data     []core.ResultEvent
+	start    int
+	length   int
+	capacity int
+}
+
+// NewResultBuffer creates a new ring buffer with the provided capacity.
+func NewResultBuffer(capacity int) *ResultBuffer {
+	if capacity <= 0 {
+		capacity = defaultResultBufferSize
+	}
+
+	return &ResultBuffer{
+		data:     make([]core.ResultEvent, capacity),
+		capacity: capacity,
+	}
+}
+
+// Append inserts a result into the buffer, evicting the oldest when full.
+func (b *ResultBuffer) Append(result core.ResultEvent) {
+	if b.capacity == 0 {
+		return
+	}
+
+	if b.length < b.capacity {
+		idx := (b.start + b.length) % b.capacity
+		b.data[idx] = result
+		b.length++
+		return
+	}
+
+	// Buffer full: overwrite the oldest and move start forward.
+	b.data[b.start] = result
+	b.start = (b.start + 1) % b.capacity
+}
+
+// Items returns the buffered results in discovery order (oldest to newest).
+func (b *ResultBuffer) Items() []core.ResultEvent {
+	if b.length == 0 {
+		return nil
+	}
+
+	items := make([]core.ResultEvent, 0, b.length)
+	for i := 0; i < b.length; i++ {
+		idx := (b.start + i) % b.capacity
+		items = append(items, b.data[idx])
+	}
+	return items
+}
+
+// Len reports the number of items currently stored.
+func (b *ResultBuffer) Len() int {
+	return b.length
+}
+
+// ResultStats tracks aggregate counts for scan results regardless of buffer eviction.
+type ResultStats struct {
+	total    int
+	open     int
+	closed   int
+	filtered int
+}
+
+func NewResultStats() *ResultStats {
+	return &ResultStats{}
+}
+
+func (s *ResultStats) Add(result core.ResultEvent) {
+	s.total++
+
+	switch result.State {
+	case core.StateOpen:
+		s.open++
+	case core.StateClosed:
+		s.closed++
+	case core.StateFiltered:
+		s.filtered++
+	}
+}
+
+func (s *ResultStats) Totals() (total, open, closed, filtered int) {
+	return s.total, s.open, s.closed, s.filtered
+}
+
 // ScanUI renders scan activity in the terminal.
 type ScanUI struct {
 	// Core
 	config     *config.Config
 	theme      theme.Theme
-	results    []core.ResultEvent
+	results    *ResultBuffer
 	resultChan <-chan core.Event
+	bufferSize int
 
 	// View state
 	viewState UIViewState
@@ -66,15 +155,17 @@ type ScanUI struct {
 	showOnlyOpen bool
 
 	// Stats
-	openCount     int
-	closedCount   int
-	filteredCount int
-	currentRate   float64
+	stats       *ResultStats
+	currentRate float64
 
 	// Sorting and Filtering
 	sortState      *SortState
 	filterState    *FilterState
 	displayResults []core.ResultEvent // Filtered/sorted view of results
+
+	// Dashboard
+	showDashboard bool
+	statsData     *StatsData
 }
 
 // KeyBindings defines all keyboard shortcuts
@@ -91,9 +182,10 @@ type KeyBindings struct {
 	Quit     key.Binding
 	Sort     key.Binding
 	Filter   key.Binding
-	Reset    key.Binding
-	OpenOnly key.Binding
-	Search   key.Binding
+	Reset           key.Binding
+	OpenOnly        key.Binding
+	Search          key.Binding
+	ToggleDashboard key.Binding
 }
 
 var defaultKeys = KeyBindings{
@@ -157,6 +249,10 @@ var defaultKeys = KeyBindings{
 		key.WithKeys("/"),
 		key.WithHelp("/", "search banners"),
 	),
+	ToggleDashboard: key.NewBinding(
+		key.WithKeys("D"),
+		key.WithHelp("D", "toggle dashboard"),
+	),
 }
 
 // ShortHelp returns key bindings for the help bar
@@ -177,6 +273,14 @@ func (k KeyBindings) FullHelp() [][]key.Binding {
 // NewScanUI creates a new scan UI model.
 func NewScanUI(cfg *config.Config, totalPorts int, results <-chan core.Event, onlyOpen bool) *ScanUI {
 	t := theme.GetTheme(cfg.UI.Theme)
+
+	bufferSize := cfg.UI.ResultBufferSize
+	if bufferSize <= 0 {
+		bufferSize = defaultResultBufferSize
+	}
+
+	resultBuffer := NewResultBuffer(bufferSize)
+	stats := NewResultStats()
 
 	columns := []table.Column{
 		{Title: "Host", Width: 20},
@@ -222,8 +326,9 @@ func NewScanUI(cfg *config.Config, totalPorts int, results <-chan core.Event, on
 	return &ScanUI{
 		config:         cfg,
 		theme:          t,
-		results:        []core.ResultEvent{},
+		results:        resultBuffer,
 		resultChan:     results,
+		bufferSize:     bufferSize,
 		table:          tbl,
 		progressBar:    prog,
 		spinner:        spin,
@@ -236,6 +341,7 @@ func NewScanUI(cfg *config.Config, totalPorts int, results <-chan core.Event, on
 		showOnlyOpen:   onlyOpen,
 		sortState:      sortState,
 		filterState:    filterState,
+		stats:          stats,
 		displayResults: []core.ResultEvent{},
 	}
 }

@@ -145,6 +145,13 @@ func (m *ScanUI) handleMainKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
 		}
 		m.updateTable()
 		return true, true, nil
+	case key.Matches(msg, m.keys.ToggleDashboard):
+		m.showDashboard = !m.showDashboard
+		// Recompute stats when showing dashboard
+		if m.showDashboard {
+			m.statsData = m.computeStats()
+		}
+		return true, true, nil
 	case key.Matches(msg, m.keys.Up):
 		m.table.MoveUp(1)
 		return true, true, nil
@@ -221,18 +228,35 @@ func (m *ScanUI) handleFilterMenuKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
 }
 
 func (m *ScanUI) handleScanResult(msg scanResultMsg) {
-	m.results = append(m.results, msg.result)
+	m.results.Append(msg.result)
+	m.stats.Add(msg.result)
 	m.updateTable()
-	m.updateStats(msg.result)
+	total, open, closed, filtered := m.stats.Totals()
+	m.progressTrack.Update(total, open, closed, filtered, m.currentRate)
+	
+	// Update dashboard stats if visible
+	if m.showDashboard {
+		m.statsData = m.computeStats()
+	}
 }
 
 func (m *ScanUI) handleScanProgress(msg scanProgressMsg) {
 	m.currentRate = msg.progress.Rate
+	if msg.progress.Total > 0 {
+		m.progressTrack.TotalPorts = msg.progress.Total
+	}
+
+	total, open, closed, filtered := m.stats.Totals()
+	scanned := msg.progress.Completed
+	if scanned < total {
+		scanned = total
+	}
+
 	m.progressTrack.Update(
-		len(m.results),
-		m.openCount,
-		m.closedCount,
-		m.filteredCount,
+		scanned,
+		open,
+		closed,
+		filtered,
 		m.currentRate,
 	)
 }
@@ -278,7 +302,8 @@ func (m *ScanUI) isNavigationKey(msg tea.Msg) bool {
 }
 
 func (m *ScanUI) updateTable() {
-	filtered := m.filterState.ApplyFilters(m.results)
+	baseResults := m.results.Items()
+	filtered := m.filterState.ApplyFilters(baseResults)
 	m.displayResults = m.sortState.ApplySort(filtered)
 
 	var rows []table.Row
@@ -311,17 +336,6 @@ func (m *ScanUI) updateTable() {
 		})
 	}
 	m.table.SetRows(rows)
-}
-
-func (m *ScanUI) updateStats(result core.ResultEvent) {
-	switch result.State {
-	case core.StateOpen:
-		m.openCount++
-	case core.StateClosed:
-		m.closedCount++
-	case core.StateFiltered:
-		m.filteredCount++
-	}
 }
 
 func (m *ScanUI) listenForResults() tea.Cmd {
