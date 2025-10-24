@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -90,6 +91,97 @@ func TestConfigValidation(t *testing.T) {
 				// Scanner should handle zero workers gracefully
 				if scanner != nil && scanner.config.Workers <= 0 {
 					t.Error("Scanner should not allow zero or negative workers")
+				}
+			}
+		})
+	}
+}
+
+func TestSimplifiedWorkerPool(t *testing.T) {
+	cfg := &Config{
+		Workers:   10,
+		Timeout:   100 * time.Millisecond,
+		RateLimit: 0,
+	}
+	scanner := NewScanner(cfg)
+
+	ctx := context.Background()
+	ports := []uint16{80, 443, 8080}
+
+	go scanner.ScanRange(ctx, "localhost", ports)
+
+	results := 0
+	progressEvents := 0
+	for event := range scanner.Results() {
+		switch event.Kind {
+		case EventKindResult:
+			results++
+		case EventKindProgress:
+			progressEvents++
+		}
+	}
+
+	if results != len(ports) {
+		t.Errorf("got %d results; want %d", results, len(ports))
+	}
+
+	if progressEvents == 0 {
+		t.Error("expected at least one progress event")
+	}
+}
+
+// BenchmarkWorkerPool benchmarks worker pool performance
+func BenchmarkWorkerPool(b *testing.B) {
+	cfg := &Config{
+		Workers:   100,
+		Timeout:   50 * time.Millisecond,
+		RateLimit: 0,
+	}
+
+	ports := []uint16{80, 443, 8080, 22, 3306}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		scanner := NewScanner(cfg)
+		ctx := context.Background()
+
+		go scanner.ScanRange(ctx, "localhost", ports)
+
+		// Drain results
+		for range scanner.Results() {
+		}
+	}
+}
+
+// BenchmarkWorkerPoolScaling benchmarks worker pool scaling
+func BenchmarkWorkerPoolScaling(b *testing.B) {
+	tests := []struct {
+		name    string
+		workers int
+	}{
+		{"10 workers", 10},
+		{"50 workers", 50},
+		{"100 workers", 100},
+		{"200 workers", 200},
+	}
+
+	ports := []uint16{80, 443, 8080}
+
+	for _, tt := range tests {
+		b.Run(tt.name, func(b *testing.B) {
+			cfg := &Config{
+				Workers:   tt.workers,
+				Timeout:   50 * time.Millisecond,
+				RateLimit: 0,
+			}
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				scanner := NewScanner(cfg)
+				ctx := context.Background()
+
+				go scanner.ScanRange(ctx, "localhost", ports)
+				for range scanner.Results() {
 				}
 			}
 		})

@@ -147,29 +147,26 @@ func (s *Scanner) worker(ctx context.Context, jobs <-chan scanJob) {
 
 	dialer := &net.Dialer{Timeout: s.config.Timeout}
 
-	for {
-		select {
-		case <-ctx.Done():
+	for job := range jobs {
+		// Check context cancellation
+		if ctx.Err() != nil {
 			return
-		case job, ok := <-jobs:
-			if !ok {
-				return
-			}
+		}
 
-			s.scanPort(ctx, dialer, job)
+		// Rate limiting at worker level
+		if !s.waitForRate(ctx) {
+			return
+		}
+
+		// Scan port inline
+		result := s.performDial(ctx, dialer, job)
+		if result != nil {
+			s.emitResult(ctx, *result)
 		}
 	}
 }
 
-func (s *Scanner) scanPort(ctx context.Context, dialer *net.Dialer, job scanJob) {
-	result, ok := s.performDial(ctx, dialer, job)
-	if !ok {
-		return
-	}
-	s.emitResult(ctx, result)
-}
-
-func (s *Scanner) performDial(ctx context.Context, dialer *net.Dialer, job scanJob) (ResultEvent, bool) {
+func (s *Scanner) performDial(ctx context.Context, dialer *net.Dialer, job scanJob) *ResultEvent {
 	address := net.JoinHostPort(job.host, strconv.Itoa(int(job.port)))
 	maxAttempts := s.config.MaxRetries + 1
 	if maxAttempts <= 0 {
@@ -178,10 +175,6 @@ func (s *Scanner) performDial(ctx context.Context, dialer *net.Dialer, job scanJ
 
 	var lastResult ResultEvent
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		if !s.waitForRate(ctx) {
-			return ResultEvent{}, false
-		}
-
 		start := time.Now()
 		conn, err := dialer.DialContext(ctx, "tcp", address)
 		duration := time.Since(start)
@@ -195,7 +188,7 @@ func (s *Scanner) performDial(ctx context.Context, dialer *net.Dialer, job scanJ
 
 		if err != nil {
 			if ctx.Err() != nil {
-				return ResultEvent{}, false
+				return nil
 			}
 
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
@@ -203,7 +196,7 @@ func (s *Scanner) performDial(ctx context.Context, dialer *net.Dialer, job scanJ
 				lastResult = result
 				if attempt < maxAttempts-1 {
 					if !s.sleepWithJitter(ctx, attempt) {
-						return ResultEvent{}, false
+						return nil
 					}
 					continue
 				}
@@ -218,11 +211,11 @@ func (s *Scanner) performDial(ctx context.Context, dialer *net.Dialer, job scanJ
 				result.Banner = s.grabBanner(conn)
 			}
 			_ = conn.Close()
-			return result, true
+			return &result
 		}
 	}
 
-	return lastResult, true
+	return &lastResult
 }
 
 func (s *Scanner) waitForRate(ctx context.Context) bool {
