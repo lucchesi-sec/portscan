@@ -42,6 +42,7 @@ func (e *UserError) Unwrap() error {
 
 // Common error constructors
 
+// InvalidPortError creates a user error for invalid port specifications.
 func InvalidPortError(port string, err error) *UserError {
 	return &UserError{
 		Code:       "INVALID_PORT",
@@ -52,6 +53,7 @@ func InvalidPortError(port string, err error) *UserError {
 	}
 }
 
+// NoTargetError creates a user error when no scan target is specified.
 func NoTargetError() *UserError {
 	return &UserError{
 		Code:       "NO_TARGET",
@@ -61,6 +63,7 @@ func NoTargetError() *UserError {
 	}
 }
 
+// InvalidTargetError creates a user error for an invalid target address.
 func InvalidTargetError(target string, err error) *UserError {
 	return &UserError{
 		Code:       "INVALID_TARGET",
@@ -71,6 +74,7 @@ func InvalidTargetError(target string, err error) *UserError {
 	}
 }
 
+// InvalidTargetListError creates a user error when target list resolution fails.
 func InvalidTargetListError(err error) *UserError {
 	return &UserError{
 		Code:       "INVALID_TARGET_LIST",
@@ -81,6 +85,7 @@ func InvalidTargetListError(err error) *UserError {
 	}
 }
 
+// ConfigLoadError creates a user error when configuration cannot be loaded.
 func ConfigLoadError(path string, err error) *UserError {
 	return &UserError{
 		Code:       "CONFIG_ERROR",
@@ -91,6 +96,7 @@ func ConfigLoadError(path string, err error) *UserError {
 	}
 }
 
+// RateLimitError creates a user error when rate limit exceeds safe maximum.
 func RateLimitError(requested, max int) *UserError {
 	return &UserError{
 		Code:       "RATE_LIMIT_HIGH",
@@ -100,6 +106,7 @@ func RateLimitError(requested, max int) *UserError {
 	}
 }
 
+// NetworkError creates a user error for network operation failures.
 func NetworkError(operation string, err error) *UserError {
 	return &UserError{
 		Code:       "NETWORK_ERROR",
@@ -110,6 +117,7 @@ func NetworkError(operation string, err error) *UserError {
 	}
 }
 
+// PermissionError creates a user error for operations requiring elevated privileges.
 func PermissionError(operation string) *UserError {
 	return &UserError{
 		Code:       "PERMISSION_DENIED",
@@ -119,6 +127,7 @@ func PermissionError(operation string) *UserError {
 	}
 }
 
+// TimeoutError creates a user error when an operation times out.
 func TimeoutError(timeout int) *UserError {
 	return &UserError{
 		Code:       "TIMEOUT",

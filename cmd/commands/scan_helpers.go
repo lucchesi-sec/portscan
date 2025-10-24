@@ -103,6 +103,8 @@ Profiles:
 	fmt.Println(examples)
 }
 
+// getOptimalWorkerCount calculates worker count based on available CPU cores.
+// Returns cores * 50, capped between 10 and 200.
 func getOptimalWorkerCount() int {
 	cores := runtime.NumCPU()
 	workers := cores * 50

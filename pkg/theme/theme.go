@@ -2,6 +2,7 @@ package theme
 
 import "github.com/charmbracelet/lipgloss"
 
+// Theme defines color scheme for the TUI.
 type Theme struct {
 	Name       string
 	Primary    lipgloss.Color
@@ -56,6 +57,8 @@ var (
 	}
 )
 
+// GetTheme returns the theme matching the given name.
+// Defaults to the "default" theme if name is not recognized.
 func GetTheme(name string) Theme {
 	switch name {
 	case "dracula":
@@ -67,6 +70,7 @@ func GetTheme(name string) Theme {
 	}
 }
 
+// HeaderStyle returns the style for header text.
 func (t Theme) HeaderStyle() lipgloss.Style {
 	return lipgloss.NewStyle().
 		Bold(true).
@@ -74,27 +78,32 @@ func (t Theme) HeaderStyle() lipgloss.Style {
 		MarginBottom(1)
 }
 
+// StatusStyle returns the style for status text.
 func (t Theme) StatusStyle() lipgloss.Style {
 	return lipgloss.NewStyle().
 		Foreground(t.Muted)
 }
 
+// FooterStyle returns the style for footer text.
 func (t Theme) FooterStyle() lipgloss.Style {
 	return lipgloss.NewStyle().
 		Foreground(t.Muted).
 		MarginTop(1)
 }
 
+// SuccessStyle returns the style for success messages.
 func (t Theme) SuccessStyle() lipgloss.Style {
 	return lipgloss.NewStyle().
 		Foreground(t.Success)
 }
 
+// ErrorStyle returns the style for error messages.
 func (t Theme) ErrorStyle() lipgloss.Style {
 	return lipgloss.NewStyle().
 		Foreground(t.Danger)
 }
 
+// WarningStyle returns the style for warning messages.
 func (t Theme) WarningStyle() lipgloss.Style {
 	return lipgloss.NewStyle().
 		Foreground(t.Warning)

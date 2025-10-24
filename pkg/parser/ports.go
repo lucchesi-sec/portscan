@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+// ParsePorts parses a port specification string into a list of unique ports.
+// Supports single ports (80), ranges (1-1024), and comma-separated lists.
 func ParsePorts(spec string) ([]uint16, error) {
 	seen := make(map[uint16]struct{})
 	var result []uint16

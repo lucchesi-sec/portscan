@@ -10,6 +10,7 @@ import (
 	"github.com/lucchesi-sec/portscan/pkg/services"
 )
 
+// JSONExporter exports scan results in JSON format (NDJSON, array, or object).
 type JSONExporter struct {
 	writer     io.Writer
 	encoder    *json.Encoder
@@ -19,6 +20,7 @@ type JSONExporter struct {
 	metadata ScanMetadata
 }
 
+// ScanMetadata holds metadata about a scan for inclusion in JSON export.
 type ScanMetadata struct {
 	Targets    []string
 	TotalPorts int
@@ -45,6 +47,7 @@ func buildResultDTO(r core.ResultEvent) map[string]interface{} {
 	return dto
 }
 
+// NewJSONExporter creates a new NDJSON exporter that writes one JSON object per line.
 func NewJSONExporter(w io.Writer) *JSONExporter {
 	return &JSONExporter{
 		writer:   w,
@@ -80,6 +83,7 @@ func NewJSONExporterObject(w io.Writer, target string, totalPorts int, scanRate 
 	}
 }
 
+// NewJSONExporterObjectWithMetadata creates a JSON object exporter with custom metadata.
 func NewJSONExporterObjectWithMetadata(w io.Writer, meta ScanMetadata) *JSONExporter {
 	copyTargets := make([]string, len(meta.Targets))
 	copy(copyTargets, meta.Targets)
@@ -95,6 +99,7 @@ func NewJSONExporterObjectWithMetadata(w io.Writer, meta ScanMetadata) *JSONExpo
 	}
 }
 
+// Export writes scan result events in the configured JSON format.
 func (e *JSONExporter) Export(events <-chan core.Event) {
 	if e.objectMode {
 		// Write opening object with results array first; scan_info appended at end.
@@ -174,6 +179,7 @@ func (e *JSONExporter) Export(events <-chan core.Event) {
 	}
 }
 
+// Close is a no-op for JSON exporters.
 func (e *JSONExporter) Close() error {
 	return nil
 }

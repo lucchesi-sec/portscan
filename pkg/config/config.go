@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Config holds the scanner configuration with validation rules.
 type Config struct {
 	Rate           int      `mapstructure:"rate" validate:"min=1,max=100000"`
 	Ports          string   `mapstructure:"ports"`
@@ -19,11 +20,14 @@ type Config struct {
 	UI             UIConfig `mapstructure:"ui"`
 }
 
+// UIConfig holds UI-specific configuration options.
 type UIConfig struct {
 	Theme            string `mapstructure:"theme" validate:"oneof=default dracula monokai"`
 	ResultBufferSize int    `mapstructure:"result_buffer_size" validate:"gte=0,lte=1000000"`
 }
 
+// Load reads configuration from Viper and validates it.
+// Returns an error if configuration is invalid.
 func Load() (*Config, error) {
 	var cfg Config
 
@@ -51,6 +55,7 @@ func Load() (*Config, error) {
 	return &cfg, nil
 }
 
+// GetTimeout returns the timeout as a time.Duration.
 func (c *Config) GetTimeout() time.Duration {
 	return time.Duration(c.TimeoutMs) * time.Millisecond
 }
