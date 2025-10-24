@@ -56,6 +56,9 @@ func TestScannerEndToEnd(t *testing.T) {
 		if event.Kind != EventKindResult {
 			continue
 		}
+		if event.Result == nil {
+			t.Fatal("received result event with nil Result")
+		}
 		states[event.Result.Port] = event.Result.State
 	}
 

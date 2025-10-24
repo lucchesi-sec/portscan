@@ -58,3 +58,54 @@ func TestNewErrorEvent(t *testing.T) {
 		t.Errorf("Error = %v; want 'test error'", event.Error)
 	}
 }
+
+func TestNilSafetyResultEvent(t *testing.T) {
+	// Test that manually created event with nil Result doesn't panic
+	event := Event{
+		Kind:   EventKindResult,
+		Result: nil,
+	}
+
+	if event.Kind != EventKindResult {
+		t.Errorf("Kind = %v; want %v", event.Kind, EventKindResult)
+	}
+
+	// This would panic without nil checks in consuming code
+	if event.Result != nil {
+		t.Error("Expected nil Result pointer")
+	}
+}
+
+func TestNilSafetyProgressEvent(t *testing.T) {
+	// Test that manually created event with nil Progress doesn't panic
+	event := Event{
+		Kind:     EventKindProgress,
+		Progress: nil,
+	}
+
+	if event.Kind != EventKindProgress {
+		t.Errorf("Kind = %v; want %v", event.Kind, EventKindProgress)
+	}
+
+	// This would panic without nil checks in consuming code
+	if event.Progress != nil {
+		t.Error("Expected nil Progress pointer")
+	}
+}
+
+func TestNilSafetyErrorEvent(t *testing.T) {
+	// Test that manually created event with nil Error doesn't panic
+	event := Event{
+		Kind:  EventKindError,
+		Error: nil,
+	}
+
+	if event.Kind != EventKindError {
+		t.Errorf("Kind = %v; want %v", event.Kind, EventKindError)
+	}
+
+	// This would panic without nil checks in consuming code
+	if event.Error != nil {
+		t.Error("Expected nil Error")
+	}
+}

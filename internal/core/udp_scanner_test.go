@@ -153,6 +153,9 @@ func TestUDPScannerIntegration(t *testing.T) {
 			if event.Kind != EventKindResult {
 				continue
 			}
+			if event.Result == nil {
+				t.Fatal("received result event with nil Result")
+			}
 			r := *event.Result
 			if r.Port != port {
 				t.Errorf("Expected port %d, got %d", port, r.Port)
