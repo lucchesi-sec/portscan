@@ -270,7 +270,7 @@ func (s *Scanner) retryBackoff(attempt int) time.Duration {
 }
 
 func (s *Scanner) emitResult(ctx context.Context, result ResultEvent) {
-	evt := Event{Type: EventTypeResult, Result: result}
+	evt := NewResultEvent(result)
 	select {
 	case s.results <- evt:
 		s.completed.Add(1)
@@ -317,7 +317,7 @@ func (s *Scanner) progressReporter(ctx context.Context, total int) {
 
 			progress := ProgressEvent{Total: total, Completed: completed, Rate: rate}
 			select {
-			case s.results <- Event{Type: EventTypeProgress, Progress: progress}:
+			case s.results <- NewProgressEvent(progress):
 			case <-ctx.Done():
 				return
 			}

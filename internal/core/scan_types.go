@@ -28,7 +28,37 @@ type ProgressEvent struct {
 	Rate      float64
 }
 
-// EventType indicates the payload carried by an Event.
+// EventKind identifies the type of event
+type EventKind string
+
+const (
+	EventKindResult   EventKind = "result"
+	EventKindProgress EventKind = "progress"
+	EventKindError    EventKind = "error"
+)
+
+// Event is a typed envelope for all scanner events
+type Event struct {
+	Kind     EventKind
+	Result   *ResultEvent
+	Progress *ProgressEvent
+	Error    error
+}
+
+// Helper constructors
+func NewResultEvent(r ResultEvent) Event {
+	return Event{Kind: EventKindResult, Result: &r}
+}
+
+func NewProgressEvent(p ProgressEvent) Event {
+	return Event{Kind: EventKindProgress, Progress: &p}
+}
+
+func NewErrorEvent(err error) Event {
+	return Event{Kind: EventKindError, Error: err}
+}
+
+// EventType is deprecated, use EventKind instead
 type EventType int
 
 const (
@@ -36,14 +66,6 @@ const (
 	EventTypeProgress
 	EventTypeError
 )
-
-// Event is the unified message sent over the scanner output channel.
-type Event struct {
-	Type     EventType
-	Result   ResultEvent
-	Progress ProgressEvent
-	Err      error
-}
 
 // ScanTarget represents a host with a set of ports to scan.
 type ScanTarget struct {

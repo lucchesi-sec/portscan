@@ -150,10 +150,10 @@ func TestUDPScannerIntegration(t *testing.T) {
 	for !foundResult {
 		select {
 		case event := <-resultChan:
-			if event.Type != EventTypeResult {
+			if event.Kind != EventKindResult {
 				continue
 			}
-			r := event.Result
+			r := *event.Result
 			if r.Port != port {
 				t.Errorf("Expected port %d, got %d", port, r.Port)
 			}

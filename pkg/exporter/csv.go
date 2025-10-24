@@ -26,11 +26,11 @@ func NewCSVExporter(w io.Writer) *CSVExporter {
 
 func (e *CSVExporter) Export(events <-chan core.Event) {
 	for event := range events {
-		if event.Type != core.EventTypeResult {
+		if event.Kind != core.EventKindResult {
 			continue
 		}
 
-		r := event.Result
+		r := *event.Result
 		record := []string{
 			r.Host,
 			fmt.Sprintf("%d", r.Port),

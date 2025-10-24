@@ -53,7 +53,7 @@ func TestScannerEndToEnd(t *testing.T) {
 
 	states := make(map[uint16]ScanState, 2)
 	for event := range results {
-		if event.Type != EventTypeResult {
+		if event.Kind != EventKindResult {
 			continue
 		}
 		states[event.Result.Port] = event.Result.State

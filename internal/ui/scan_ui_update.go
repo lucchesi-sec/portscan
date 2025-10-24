@@ -346,12 +346,12 @@ func (m *ScanUI) listenForResults() tea.Cmd {
 				return scanCompleteMsg{}
 			}
 
-			switch event.Type {
-			case core.EventTypeResult:
-				return scanResultMsg{result: event.Result}
-			case core.EventTypeProgress:
-				return scanProgressMsg{progress: event.Progress}
-			case core.EventTypeError:
+			switch event.Kind {
+			case core.EventKindResult:
+				return scanResultMsg{result: *event.Result}
+			case core.EventKindProgress:
+				return scanProgressMsg{progress: *event.Progress}
+			case core.EventKindError:
 				return scanCompleteMsg{}
 			}
 		case <-time.After(100 * time.Millisecond):

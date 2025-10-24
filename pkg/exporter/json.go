@@ -102,10 +102,10 @@ func (e *JSONExporter) Export(events <-chan core.Event) {
 		first := true
 		startTime := time.Now()
 		for event := range events {
-			if event.Type != core.EventTypeResult {
+			if event.Kind != core.EventKindResult {
 				continue
 			}
-			r := event.Result
+			r := *event.Result
 			dto := buildResultDTO(r)
 
 			if !first {
@@ -142,10 +142,10 @@ func (e *JSONExporter) Export(events <-chan core.Event) {
 		_, _ = e.writer.Write([]byte("["))
 		first := true
 		for event := range events {
-			if event.Type != core.EventTypeResult {
+			if event.Kind != core.EventKindResult {
 				continue
 			}
-			r := event.Result
+			r := *event.Result
 			dto := buildResultDTO(r)
 
 			if !first {
@@ -164,10 +164,10 @@ func (e *JSONExporter) Export(events <-chan core.Event) {
 
 	// Default: Stream each result as a single JSON object per line (NDJSON)
 	for event := range events {
-		if event.Type != core.EventTypeResult {
+		if event.Kind != core.EventKindResult {
 			continue
 		}
-		dto := buildResultDTO(event.Result)
+		dto := buildResultDTO(*event.Result)
 
 		// Best-effort encode; callers can check write errors on the underlying writer if needed.
 		_ = e.encoder.Encode(dto)

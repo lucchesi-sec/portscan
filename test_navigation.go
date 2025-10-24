@@ -24,12 +24,12 @@ func main() {
 	go func() {
 		defer close(results)
 		for i := 1; i <= 10; i++ {
-			results <- core.Event{Type: core.EventTypeResult, Result: core.ResultEvent{
+			results <- core.NewResultEvent(core.ResultEvent{
 				Host:   "127.0.0.1",
 				Port:   uint16(80 + i),
 				State:  core.StateOpen,
 				Banner: fmt.Sprintf("Test service %d", i),
-			}}
+			})
 		}
 	}()
 

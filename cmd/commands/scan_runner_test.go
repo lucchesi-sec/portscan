@@ -421,22 +421,16 @@ func TestMonitorInterrupts(t *testing.T) {
 func TestStreamEvents(t *testing.T) {
 	// Create a mock event channel
 	events := make(chan core.Event, 2)
-	events <- core.Event{
-		Type: core.EventTypeResult,
-		Result: core.ResultEvent{
-			Host:  "localhost",
-			Port:  80,
-			State: "open",
-		},
-	}
-	events <- core.Event{
-		Type: core.EventTypeResult,
-		Result: core.ResultEvent{
-			Host:  "localhost",
-			Port:  443,
-			State: "closed",
-		},
-	}
+	events <- core.NewResultEvent(core.ResultEvent{
+		Host:  "localhost",
+		Port:  80,
+		State: "open",
+	})
+	events <- core.NewResultEvent(core.ResultEvent{
+		Host:  "localhost",
+		Port:  443,
+		State: "closed",
+	})
 	close(events)
 
 	// Mock export function

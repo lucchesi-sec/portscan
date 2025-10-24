@@ -14,9 +14,9 @@ func TestJSONExporterArrayMode(t *testing.T) {
 	exp := NewJSONExporterArray(&buf)
 	ch := make(chan core.Event, 3)
 
-	ch <- core.Event{Type: core.EventTypeResult, Result: core.ResultEvent{Host: "h", Port: 1, State: core.StateOpen, Duration: 10 * time.Millisecond}}
-	ch <- core.Event{Type: core.EventTypeProgress, Progress: core.ProgressEvent{Total: 2, Completed: 1, Rate: 10}}
-	ch <- core.Event{Type: core.EventTypeResult, Result: core.ResultEvent{Host: "h", Port: 2, State: core.StateClosed, Duration: 5 * time.Millisecond}}
+	ch <- core.NewResultEvent(core.ResultEvent{Host: "h", Port: 1, State: core.StateOpen, Duration: 10 * time.Millisecond})
+	ch <- core.NewProgressEvent(core.ProgressEvent{Total: 2, Completed: 1, Rate: 10})
+	ch <- core.NewResultEvent(core.ResultEvent{Host: "h", Port: 2, State: core.StateClosed, Duration: 5 * time.Millisecond})
 	close(ch)
 
 	exp.Export(ch)

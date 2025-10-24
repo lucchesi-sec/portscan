@@ -14,9 +14,9 @@ func TestJSONExporterObjectMode(t *testing.T) {
 	exp := NewJSONExporterObjectWithMetadata(&buf, ScanMetadata{Targets: []string{"1.2.3.4"}, TotalPorts: 2, Rate: 7500})
 	ch := make(chan core.Event, 3)
 
-	ch <- core.Event{Type: core.EventTypeResult, Result: core.ResultEvent{Host: "1.2.3.4", Port: 22, State: core.StateOpen, Duration: 12 * time.Millisecond}}
-	ch <- core.Event{Type: core.EventTypeProgress, Progress: core.ProgressEvent{Total: 2, Completed: 1, Rate: 100}}
-	ch <- core.Event{Type: core.EventTypeResult, Result: core.ResultEvent{Host: "1.2.3.4", Port: 80, State: core.StateClosed, Duration: 5 * time.Millisecond}}
+	ch <- core.NewResultEvent(core.ResultEvent{Host: "1.2.3.4", Port: 22, State: core.StateOpen, Duration: 12 * time.Millisecond})
+	ch <- core.NewProgressEvent(core.ProgressEvent{Total: 2, Completed: 1, Rate: 100})
+	ch <- core.NewResultEvent(core.ResultEvent{Host: "1.2.3.4", Port: 80, State: core.StateClosed, Duration: 5 * time.Millisecond})
 	close(ch)
 
 	exp.Export(ch)
