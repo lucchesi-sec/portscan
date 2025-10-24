@@ -24,11 +24,11 @@ func TestNewSplitView(t *testing.T) {
 
 func TestSplitViewDimensions(t *testing.T) {
 	tests := []struct {
-		name       string
-		width      int
-		ratio      float64
-		wantLeft   int
-		wantRight  int
+		name      string
+		width     int
+		ratio     float64
+		wantLeft  int
+		wantRight int
 	}{
 		{
 			name:      "50/50 split",

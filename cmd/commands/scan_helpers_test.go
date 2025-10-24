@@ -11,7 +11,7 @@ import (
 
 func TestGetOptimalWorkerCount(t *testing.T) {
 	count := getOptimalWorkerCount()
-	
+
 	// Should be between numCPU*50, with min 10 and max 200
 	expected := runtime.NumCPU() * 50
 	if expected > 200 {
@@ -20,16 +20,16 @@ func TestGetOptimalWorkerCount(t *testing.T) {
 	if expected < 10 {
 		expected = 10
 	}
-	
+
 	if count != expected {
 		t.Errorf("expected worker count %d, got %d", expected, count)
 	}
-	
+
 	// Should never be less than 10
 	if count < 10 {
 		t.Errorf("worker count should be at least 10, got %d", count)
 	}
-	
+
 	// Should never exceed 200
 	if count > 200 {
 		t.Errorf("worker count should not exceed 200, got %d", count)
@@ -39,7 +39,7 @@ func TestGetOptimalWorkerCount(t *testing.T) {
 func TestCollectTargetInputs_Args(t *testing.T) {
 	// Reset viper
 	viper.Set("stdin", false)
-	
+
 	tests := []struct {
 		name     string
 		args     []string
@@ -61,18 +61,18 @@ func TestCollectTargetInputs_Args(t *testing.T) {
 			expected: []string{},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := collectTargetInputs(tt.args)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			
+
 			if len(result) != len(tt.expected) {
 				t.Errorf("expected %d targets, got %d", len(tt.expected), len(result))
 			}
-			
+
 			for i, target := range result {
 				if i < len(tt.expected) && target != tt.expected[i] {
 					t.Errorf("at index %d: expected %s, got %s", i, tt.expected[i], target)
@@ -114,36 +114,36 @@ func TestCollectTargetInputs_Stdin(t *testing.T) {
 			expected: []string{},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set stdin flag
 			viper.Set("stdin", true)
 			defer viper.Set("stdin", false)
-			
+
 			// Replace stdin
 			oldStdin := os.Stdin
 			r, w, _ := os.Pipe()
 			os.Stdin = r
-			
+
 			// Write test input
 			go func() {
 				defer w.Close()
 				io.WriteString(w, tt.input)
 			}()
-			
+
 			// Restore stdin after test
 			defer func() { os.Stdin = oldStdin }()
-			
+
 			result, err := collectTargetInputs([]string{})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			
+
 			if len(result) != len(tt.expected) {
 				t.Errorf("expected %d targets, got %d", len(tt.expected), len(result))
 			}
-			
+
 			for i, target := range result {
 				if i < len(tt.expected) && target != tt.expected[i] {
 					t.Errorf("at index %d: expected %s, got %s", i, tt.expected[i], target)
@@ -201,22 +201,22 @@ func TestResolveTargetList(t *testing.T) {
 			expectError: true,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := resolveTargetList(tt.inputs)
-			
+
 			if tt.expectError {
 				if err == nil {
 					t.Error("expected error but got none")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			
+
 			if len(result) < tt.minHosts {
 				t.Errorf("expected at least %d hosts, got %d", tt.minHosts, len(result))
 			}
@@ -241,20 +241,18 @@ func TestEnforceRateSafety(t *testing.T) {
 		{"zero rate", 0, false},
 		{"negative rate", -1, false},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := enforceRateSafety(tt.rate)
-			
+
 			if tt.expectError && err == nil {
 				t.Error("expected error but got none")
 			}
-			
+
 			if !tt.expectError && err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
 		})
 	}
 }
-
-

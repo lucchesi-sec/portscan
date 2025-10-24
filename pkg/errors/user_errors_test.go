@@ -99,23 +99,23 @@ func TestUserError_UnwrapNil(t *testing.T) {
 // TestInvalidPortError tests port error creation
 func TestInvalidPortError(t *testing.T) {
 	tests := []struct {
-		name      string
-		port      string
+		name       string
+		port       string
 		wrappedErr error
 	}{
 		{
-			name:      "invalid port with wrapped error",
-			port:      "99999",
+			name:       "invalid port with wrapped error",
+			port:       "99999",
 			wrappedErr: errors.New("port out of range"),
 		},
 		{
-			name:      "invalid port format",
-			port:      "abc",
+			name:       "invalid port format",
+			port:       "abc",
 			wrappedErr: errors.New("not a number"),
 		},
 		{
-			name:      "invalid port without wrapped error",
-			port:      "70000",
+			name:       "invalid port without wrapped error",
+			port:       "70000",
 			wrappedErr: nil,
 		},
 	}

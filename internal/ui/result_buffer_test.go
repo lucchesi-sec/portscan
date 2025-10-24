@@ -197,7 +197,7 @@ func TestResultBuffer_LargeDataset(t *testing.T) {
 }
 
 func TestResultBuffer_WithStats(t *testing.T) {
-	rb := NewResultBuffer(2)  // Small buffer
+	rb := NewResultBuffer(2) // Small buffer
 	stats := NewResultStats()
 
 	// Add results exceeding buffer capacity

@@ -233,7 +233,7 @@ func (m *ScanUI) handleScanResult(msg scanResultMsg) {
 	m.updateTable()
 	total, open, closed, filtered := m.stats.Totals()
 	m.progressTrack.Update(total, open, closed, filtered, m.currentRate)
-	
+
 	// Update dashboard stats if visible
 	if m.showDashboard {
 		m.statsData = m.computeStats()

@@ -170,18 +170,18 @@ type ScanUI struct {
 
 // KeyBindings defines all keyboard shortcuts
 type KeyBindings struct {
-	Up       key.Binding
-	Down     key.Binding
-	PageUp   key.Binding
-	PageDown key.Binding
-	Home     key.Binding
-	End      key.Binding
-	Help     key.Binding
-	Pause    key.Binding
-	Clear    key.Binding
-	Quit     key.Binding
-	Sort     key.Binding
-	Filter   key.Binding
+	Up              key.Binding
+	Down            key.Binding
+	PageUp          key.Binding
+	PageDown        key.Binding
+	Home            key.Binding
+	End             key.Binding
+	Help            key.Binding
+	Pause           key.Binding
+	Clear           key.Binding
+	Quit            key.Binding
+	Sort            key.Binding
+	Filter          key.Binding
 	Reset           key.Binding
 	OpenOnly        key.Binding
 	Search          key.Binding

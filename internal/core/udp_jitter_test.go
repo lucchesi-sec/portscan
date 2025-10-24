@@ -22,9 +22,9 @@ func TestUDPJitterConfiguration(t *testing.T) {
 	// Test explicit setting
 	customJitter := 20
 	cfg2 := &Config{
-		Workers:         100,
-		Timeout:         200 * time.Millisecond,
-		UDPJitterMaxMs:  customJitter,
+		Workers:        100,
+		Timeout:        200 * time.Millisecond,
+		UDPJitterMaxMs: customJitter,
 	}
 	scanner2 := NewScanner(cfg2)
 

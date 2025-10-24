@@ -9,28 +9,28 @@ import (
 
 // StatsData holds computed statistics for the dashboard
 type StatsData struct {
-	TotalResults   int
-	OpenCount      int
-	ClosedCount    int
-	FilteredCount  int
-	
+	TotalResults  int
+	OpenCount     int
+	ClosedCount   int
+	FilteredCount int
+
 	// Service statistics
-	ServiceCounts  map[string]int
-	TopServices    []ServiceStat
-	
+	ServiceCounts map[string]int
+	TopServices   []ServiceStat
+
 	// Response time statistics
 	MinResponseTime time.Duration
 	MaxResponseTime time.Duration
 	AvgResponseTime time.Duration
 	P95ResponseTime time.Duration
-	
+
 	// Performance metrics
-	CurrentRate    float64
-	AverageRate    float64
-	
+	CurrentRate float64
+	AverageRate float64
+
 	// Network statistics
-	UniqueHosts    int
-	HostsWithOpen  int
+	UniqueHosts   int
+	HostsWithOpen int
 }
 
 // ServiceStat represents a service with its count
@@ -44,22 +44,22 @@ func (m *ScanUI) computeStats() *StatsData {
 	stats := &StatsData{
 		ServiceCounts: make(map[string]int),
 	}
-	
+
 	results := m.results.Items()
 	if len(results) == 0 {
 		return stats
 	}
-	
+
 	stats.TotalResults = len(results)
-	
+
 	var totalDuration time.Duration
 	minDuration := time.Hour
 	maxDuration := time.Duration(0)
 	var durations []time.Duration
-	
+
 	hostsMap := make(map[string]bool)
 	hostsWithOpen := make(map[string]bool)
-	
+
 	// Collect statistics
 	for _, result := range results {
 		// Count states
@@ -72,18 +72,18 @@ func (m *ScanUI) computeStats() *StatsData {
 		case core.StateFiltered:
 			stats.FilteredCount++
 		}
-		
+
 		// Count services
 		service := getServiceName(result.Port)
 		if service != "" && service != "Unknown" {
 			stats.ServiceCounts[service]++
 		}
-		
+
 		// Response times
 		if result.Duration > 0 {
 			totalDuration += result.Duration
 			durations = append(durations, result.Duration)
-			
+
 			if result.Duration < minDuration {
 				minDuration = result.Duration
 			}
@@ -91,17 +91,17 @@ func (m *ScanUI) computeStats() *StatsData {
 				maxDuration = result.Duration
 			}
 		}
-		
+
 		// Unique hosts
 		hostsMap[result.Host] = true
 	}
-	
+
 	// Response time stats
 	if len(durations) > 0 {
 		stats.MinResponseTime = minDuration
 		stats.MaxResponseTime = maxDuration
 		stats.AvgResponseTime = totalDuration / time.Duration(len(durations))
-		
+
 		// Calculate P95
 		sort.Slice(durations, func(i, j int) bool {
 			return durations[i] < durations[j]
@@ -111,7 +111,7 @@ func (m *ScanUI) computeStats() *StatsData {
 			stats.P95ResponseTime = durations[p95Index]
 		}
 	}
-	
+
 	// Top services
 	type servicePair struct {
 		name  string
@@ -124,7 +124,7 @@ func (m *ScanUI) computeStats() *StatsData {
 	sort.Slice(servicePairs, func(i, j int) bool {
 		return servicePairs[i].count > servicePairs[j].count
 	})
-	
+
 	// Take top 5
 	maxServices := 5
 	if len(servicePairs) < maxServices {
@@ -136,15 +136,15 @@ func (m *ScanUI) computeStats() *StatsData {
 			Count: servicePairs[i].count,
 		})
 	}
-	
+
 	// Network stats
 	stats.UniqueHosts = len(hostsMap)
 	stats.HostsWithOpen = len(hostsWithOpen)
-	
+
 	// Performance
 	stats.CurrentRate = m.currentRate
 	stats.AverageRate = m.progressTrack.AverageRate
-	
+
 	return stats
 }
 
