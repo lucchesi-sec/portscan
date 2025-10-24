@@ -4,8 +4,14 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/lucchesi-sec/portscan/internal/core"
+)
+
+const (
+	// maxFieldLength is the maximum allowed length for CSV fields to prevent abuse
+	maxFieldLength = 256
 )
 
 // CSVExporter exports scan results to CSV format.
@@ -26,6 +32,31 @@ func NewCSVExporter(w io.Writer) *CSVExporter {
 	}
 }
 
+// sanitizeCSVField sanitizes a CSV field to prevent formula injection attacks.
+// It strips leading formula characters (=, +, -, @), caps field length,
+// and escapes dangerous patterns that could be executed in spreadsheet applications.
+func sanitizeCSVField(field string) string {
+	if field == "" {
+		return field
+	}
+
+	// Strip leading whitespace first, then formula characters
+	field = strings.TrimSpace(field)
+	field = strings.TrimLeft(field, "=+-@")
+
+	// Cap field length to prevent abuse
+	if len(field) > maxFieldLength {
+		field = field[:maxFieldLength]
+	}
+
+	// If field starts with tab, carriage return, or newline after trimming, prefix with single quote
+	if len(field) > 0 && (field[0] == '\t' || field[0] == '\r' || field[0] == '\n') {
+		field = "'" + field
+	}
+
+	return field
+}
+
 // Export writes scan result events to CSV format.
 func (e *CSVExporter) Export(events <-chan core.Event) {
 	for event := range events {
@@ -35,10 +66,10 @@ func (e *CSVExporter) Export(events <-chan core.Event) {
 
 		r := *event.Result
 		record := []string{
-			r.Host,
+			sanitizeCSVField(r.Host),
 			fmt.Sprintf("%d", r.Port),
-			string(r.State),
-			r.Banner,
+			sanitizeCSVField(string(r.State)),
+			sanitizeCSVField(r.Banner),
 			fmt.Sprintf("%d", r.Duration.Milliseconds()),
 		}
 		if err := e.csvWriter.Write(record); err != nil {
