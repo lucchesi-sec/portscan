@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -93,7 +94,7 @@ func TestRetryBackoff(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run("attempt_"+string(rune(tt.attempt)), func(t *testing.T) {
+		t.Run(fmt.Sprintf("attempt_%d", tt.attempt), func(t *testing.T) {
 			backoff := scanner.retryBackoff(tt.attempt)
 			if backoff < tt.minExpected || backoff > tt.maxExpected {
 				t.Errorf("backoff for attempt %d = %v; want between %v and %v",

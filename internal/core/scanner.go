@@ -258,7 +258,7 @@ func (s *Scanner) retryBackoff(attempt int) time.Duration {
 		base = s.config.Timeout
 	}
 
-	jitter := time.Duration(rand.Intn(40)+10) * time.Millisecond
+	jitter := time.Duration(rand.Intn(41)+10) * time.Millisecond
 	return base + jitter
 }
 
