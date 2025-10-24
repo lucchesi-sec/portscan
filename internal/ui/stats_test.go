@@ -115,10 +115,9 @@ func TestComputeStats_ServiceCounts(t *testing.T) {
 	if stats.ServiceCounts["SSH"] != 1 {
 		t.Errorf("expected SSH count = 1, got %d", stats.ServiceCounts["SSH"])
 	}
-	// Note: Due to case mismatch ("unknown" vs "Unknown"), Unknown IS counted
-	// This is actually a bug in the production code but we test current behavior
-	if stats.ServiceCounts["Unknown"] != 1 {
-		t.Errorf("expected Unknown count = 1 (due to case mismatch bug), got %d", stats.ServiceCounts["Unknown"])
+	// Note: Unknown services should be filtered out and not counted
+	if stats.ServiceCounts["Unknown"] != 0 {
+		t.Errorf("expected Unknown count = 0 (filtered out), got %d", stats.ServiceCounts["Unknown"])
 	}
 }
 

@@ -75,7 +75,7 @@ func (m *ScanUI) computeStats() *StatsData {
 		
 		// Count services
 		service := getServiceName(result.Port)
-		if service != "" && service != "unknown" {
+		if service != "" && service != "Unknown" {
 			stats.ServiceCounts[service]++
 		}
 		
