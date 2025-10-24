@@ -14,6 +14,7 @@ import (
 	"github.com/lucchesi-sec/portscan/pkg/config"
 	"github.com/lucchesi-sec/portscan/pkg/errors"
 	"github.com/lucchesi-sec/portscan/pkg/exporter"
+	"github.com/lucchesi-sec/portscan/pkg/targets"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -29,6 +30,11 @@ func runScan(cmd *cobra.Command, args []string) error {
 		return errors.ConfigLoadError(viper.ConfigFileUsed(), err)
 	}
 
+	// Validate all user inputs before processing
+	if err := validateInputs(cfg); err != nil {
+		return err
+	}
+
 	ensureWorkersConfigured(cfg)
 
 	if err := enforceRateSafety(cfg.Rate); err != nil {
@@ -41,6 +47,11 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 	if len(rawTargets) == 0 {
 		return errors.NoTargetError()
+	}
+
+	// Validate each raw target before resolution
+	if err := validateRawTargets(rawTargets); err != nil {
+		return err
 	}
 
 	resolvedTargets, err := resolveTargetList(rawTargets)
@@ -180,4 +191,64 @@ func buildScannerConfig(cfg *config.Config) *core.Config {
 		MaxRetries:     2,
 		UDPWorkerRatio: cfg.UDPWorkerRatio,
 	}
+}
+
+// validateInputs validates all user-provided configuration values.
+func validateInputs(cfg *config.Config) error {
+	// Validate port specification
+	if err := targets.ValidatePortRange(cfg.Ports); err != nil {
+		return errors.InvalidPortError(cfg.Ports, err)
+	}
+
+	// Validate rate limit
+	if err := targets.ValidateRateLimit(cfg.Rate); err != nil {
+		return &errors.UserError{
+			Code:       "INVALID_RATE",
+			Message:    "Invalid rate limit",
+			Details:    err.Error(),
+			Suggestion: "Use a rate between 1 and 50000 pps. Start with 5000-10000 for normal scans.",
+		}
+	}
+
+	// Validate timeout
+	if err := targets.ValidateTimeout(cfg.TimeoutMs); err != nil {
+		return &errors.UserError{
+			Code:       "INVALID_TIMEOUT",
+			Message:    "Invalid timeout value",
+			Details:    err.Error(),
+			Suggestion: "Use a timeout between 1ms and 60000ms. Default is 200ms.",
+		}
+	}
+
+	// Validate workers
+	if err := targets.ValidateWorkers(cfg.Workers); err != nil {
+		return &errors.UserError{
+			Code:       "INVALID_WORKERS",
+			Message:    "Invalid worker count",
+			Details:    err.Error(),
+			Suggestion: "Use 0 for auto-detect, or 1-1000 workers. Default auto-detection works well.",
+		}
+	}
+
+	// Validate UDP worker ratio
+	if err := targets.ValidateUDPWorkerRatio(cfg.UDPWorkerRatio); err != nil {
+		return &errors.UserError{
+			Code:       "INVALID_UDP_RATIO",
+			Message:    "Invalid UDP worker ratio",
+			Details:    err.Error(),
+			Suggestion: "Use a ratio between 0.0 and 1.0. Default is 0.5 (half workers for UDP).",
+		}
+	}
+
+	return nil
+}
+
+// validateRawTargets validates each target before resolution.
+func validateRawTargets(rawTargets []string) error {
+	for _, target := range rawTargets {
+		if err := targets.ValidateHost(target); err != nil {
+			return errors.InvalidTargetError(target, err)
+		}
+	}
+	return nil
 }
