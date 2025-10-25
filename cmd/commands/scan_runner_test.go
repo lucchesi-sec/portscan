@@ -478,3 +478,234 @@ func TestCollectTargetInputs_EmptyWithoutStdin(t *testing.T) {
 		t.Errorf("expected empty targets, got %d", len(targets))
 	}
 }
+
+func TestValidateInputs_ValidConfig(t *testing.T) {
+	cfg := &config.Config{
+		Ports:          "80,443,8080",
+		Rate:           5000,
+		TimeoutMs:      200,
+		Workers:        50,
+		UDPWorkerRatio: 0.5,
+	}
+
+	err := validateInputs(cfg)
+	if err != nil {
+		t.Errorf("validateInputs failed for valid config: %v", err)
+	}
+}
+
+func TestValidateInputs_InvalidPorts(t *testing.T) {
+	cfg := &config.Config{
+		Ports:          "invalid",
+		Rate:           5000,
+		TimeoutMs:      200,
+		Workers:        50,
+		UDPWorkerRatio: 0.5,
+	}
+
+	err := validateInputs(cfg)
+	if err == nil {
+		t.Error("expected error for invalid ports")
+	}
+}
+
+func TestValidateInputs_InvalidRate(t *testing.T) {
+	tests := []struct {
+		name string
+		rate int
+	}{
+		{"negative rate", -1},
+		{"zero rate", 0},
+		{"too high rate", 100000},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Ports:          "80",
+				Rate:           tt.rate,
+				TimeoutMs:      200,
+				Workers:        50,
+				UDPWorkerRatio: 0.5,
+			}
+
+			err := validateInputs(cfg)
+			if err == nil {
+				t.Error("expected error for invalid rate")
+			}
+		})
+	}
+}
+
+func TestValidateInputs_InvalidTimeout(t *testing.T) {
+	tests := []struct {
+		name      string
+		timeoutMs int
+	}{
+		{"negative timeout", -1},
+		{"zero timeout", 0},
+		{"too high timeout", 100000},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Ports:          "80",
+				Rate:           5000,
+				TimeoutMs:      tt.timeoutMs,
+				Workers:        50,
+				UDPWorkerRatio: 0.5,
+			}
+
+			err := validateInputs(cfg)
+			if err == nil {
+				t.Error("expected error for invalid timeout")
+			}
+		})
+	}
+}
+
+func TestValidateInputs_InvalidWorkers(t *testing.T) {
+	cfg := &config.Config{
+		Ports:          "80",
+		Rate:           5000,
+		TimeoutMs:      200,
+		Workers:        10000, // Too many
+		UDPWorkerRatio: 0.5,
+	}
+
+	err := validateInputs(cfg)
+	if err == nil {
+		t.Error("expected error for invalid workers")
+	}
+}
+
+func TestValidateInputs_InvalidUDPRatio(t *testing.T) {
+	tests := []struct {
+		name  string
+		ratio float64
+	}{
+		{"negative ratio", -0.1},
+		{"too high ratio", 1.5},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Ports:          "80",
+				Rate:           5000,
+				TimeoutMs:      200,
+				Workers:        50,
+				UDPWorkerRatio: tt.ratio,
+			}
+
+			err := validateInputs(cfg)
+			if err == nil {
+				t.Error("expected error for invalid UDP ratio")
+			}
+		})
+	}
+}
+
+func TestValidateRawTargets_ValidTargets(t *testing.T) {
+	targets := []string{"localhost", "192.168.1.1", "example.com", "192.168.0.0/24"}
+
+	err := validateRawTargets(targets)
+	if err != nil {
+		t.Errorf("validateRawTargets failed for valid targets: %v", err)
+	}
+}
+
+func TestValidateRawTargets_EmptyTarget(t *testing.T) {
+	targets := []string{""}
+
+	err := validateRawTargets(targets)
+	if err == nil {
+		t.Error("expected error for empty target")
+	}
+}
+
+func TestValidateRawTargets_InvalidTarget(t *testing.T) {
+	tests := []struct {
+		name   string
+		target string
+	}{
+		{"invalid IP", "999.999.999.999"},
+		{"invalid CIDR", "192.168.1.0/99"},
+		{"special characters", "host@#$%"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateRawTargets([]string{tt.target})
+			if err == nil {
+				t.Errorf("expected error for invalid target: %s", tt.target)
+			}
+		})
+	}
+}
+
+func TestNormalizeProtocol(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"empty defaults to tcp", "", "tcp"},
+		{"tcp unchanged", "tcp", "tcp"},
+		{"udp unchanged", "udp", "udp"},
+		{"both unchanged", "both", "both"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizeProtocol(tt.input)
+			if result != tt.expected {
+				t.Errorf("normalizeProtocol(%q) = %q; want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestBuildScanTargets(t *testing.T) {
+	hosts := []string{"host1", "host2", "host3"}
+	ports := []uint16{80, 443, 8080}
+
+	targets := buildScanTargets(hosts, ports)
+
+	if len(targets) != len(hosts) {
+		t.Errorf("expected %d targets, got %d", len(hosts), len(targets))
+	}
+
+	for i, target := range targets {
+		if target.Host != hosts[i] {
+			t.Errorf("target %d host = %s; want %s", i, target.Host, hosts[i])
+		}
+
+		if len(target.Ports) != len(ports) {
+			t.Errorf("target %d has %d ports; want %d", i, len(target.Ports), len(ports))
+		}
+
+		for j, port := range target.Ports {
+			if port != ports[j] {
+				t.Errorf("target %d port %d = %d; want %d", i, j, port, ports[j])
+			}
+		}
+	}
+}
+
+func TestBuildScanTargets_Empty(t *testing.T) {
+	targets := buildScanTargets([]string{}, []uint16{80})
+	if len(targets) != 0 {
+		t.Errorf("expected 0 targets for empty hosts, got %d", len(targets))
+	}
+
+	targets = buildScanTargets([]string{"host"}, []uint16{})
+	if len(targets) != 1 {
+		t.Errorf("expected 1 target, got %d", len(targets))
+	}
+
+	if len(targets[0].Ports) != 0 {
+		t.Errorf("expected 0 ports, got %d", len(targets[0].Ports))
+	}
+}

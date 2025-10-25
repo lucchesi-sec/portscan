@@ -35,7 +35,7 @@ type scanProgressMsg struct {
 
 type scanCompleteMsg struct{}
 
-const defaultResultBufferSize = 10000
+// Note: DefaultResultBufferSize is now defined in constants.go
 
 // ResultBuffer maintains a fixed-size circular buffer of recent scan results.
 type ResultBuffer struct {
@@ -48,7 +48,7 @@ type ResultBuffer struct {
 // NewResultBuffer creates a new ring buffer with the provided capacity.
 func NewResultBuffer(capacity int) *ResultBuffer {
 	if capacity <= 0 {
-		capacity = defaultResultBufferSize
+		capacity = DefaultResultBufferSize
 	}
 
 	return &ResultBuffer{
@@ -276,26 +276,26 @@ func NewScanUI(cfg *config.Config, totalPorts int, results <-chan core.Event, on
 
 	bufferSize := cfg.UI.ResultBufferSize
 	if bufferSize <= 0 {
-		bufferSize = defaultResultBufferSize
+		bufferSize = DefaultResultBufferSize
 	}
 
 	resultBuffer := NewResultBuffer(bufferSize)
 	stats := NewResultStats()
 
 	columns := []table.Column{
-		{Title: "Host", Width: 20},
-		{Title: "Port", Width: 8},
-		{Title: "Protocol", Width: 8},
-		{Title: "State", Width: 10},
-		{Title: "Service", Width: 15},
-		{Title: "Banner", Width: 35},
-		{Title: "Latency", Width: 10},
+		{Title: "Host", Width: ColumnWidthHost},
+		{Title: "Port", Width: ColumnWidthPort},
+		{Title: "Protocol", Width: ColumnWidthProtocol},
+		{Title: "State", Width: ColumnWidthState},
+		{Title: "Service", Width: ColumnWidthService},
+		{Title: "Banner", Width: ColumnWidthBanner},
+		{Title: "Latency", Width: ColumnWidthLatency},
 	}
 
 	tbl := table.New(
 		table.WithColumns(columns),
 		table.WithFocused(true),
-		table.WithHeight(15),
+		table.WithHeight(TableDefaultHeight),
 	)
 
 	styles := table.DefaultStyles()

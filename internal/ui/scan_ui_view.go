@@ -30,7 +30,7 @@ func (m *ScanUI) View() string {
 
 func (m *ScanUI) renderMain() string {
 	// Check if dashboard view is enabled
-	if m.showDashboard && m.width >= 120 {
+	if m.showDashboard && m.width >= DashboardMinWidth {
 		return m.renderDashboardView()
 	}
 
@@ -363,7 +363,7 @@ func (m *ScanUI) renderMiniBarChart() string {
 	openStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF00"))
 	closedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000"))
 	filteredStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFA500"))
-	labelStyle := lipgloss.NewStyle().Width(10)
+	labelStyle := lipgloss.NewStyle().Width(StatusBarLabelWidth)
 
 	var b strings.Builder
 

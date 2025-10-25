@@ -14,8 +14,8 @@ func TestNewResultBuffer(t *testing.T) {
 		expected int
 	}{
 		{"valid capacity", 100, 100},
-		{"zero capacity uses default", 0, defaultResultBufferSize},
-		{"negative capacity uses default", -1, defaultResultBufferSize},
+		{"zero capacity uses default", 0, DefaultResultBufferSize},
+		{"negative capacity uses default", -1, DefaultResultBufferSize},
 	}
 
 	for _, tt := range tests {

@@ -75,9 +75,9 @@ func TestValidateHost(t *testing.T) {
 // TestValidatePortRange tests port range validation
 func TestValidatePortRange(t *testing.T) {
 	tests := []struct {
-		name    string
+		name     string
 		portSpec string
-		wantErr bool
+		wantErr  bool
 	}{
 		// Valid single ports
 		{"single port 80", "80", false},
@@ -359,9 +359,9 @@ func TestValidateHost_Malicious(t *testing.T) {
 // TestValidatePortRange_EdgeCases tests edge cases for port range validation
 func TestValidatePortRange_EdgeCases(t *testing.T) {
 	tests := []struct {
-		name    string
+		name     string
 		portSpec string
-		wantErr bool
+		wantErr  bool
 	}{
 		// Boundary values
 		{"port 1", "1", false},

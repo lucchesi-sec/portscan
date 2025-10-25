@@ -159,10 +159,10 @@ func (m *ScanUI) handleMainKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
 		m.table.MoveDown(1)
 		return true, true, nil
 	case key.Matches(msg, m.keys.PageUp):
-		m.table.MoveUp(10)
+		m.table.MoveUp(PageScrollLines)
 		return true, true, nil
 	case key.Matches(msg, m.keys.PageDown):
-		m.table.MoveDown(10)
+		m.table.MoveDown(PageScrollLines)
 		return true, true, nil
 	case key.Matches(msg, m.keys.Home):
 		m.table.GotoTop()
@@ -310,8 +310,8 @@ func (m *ScanUI) updateTable() {
 	for _, r := range m.displayResults {
 		service := getServiceName(r.Port)
 		banner := r.Banner
-		if len(banner) > 40 {
-			banner = banner[:37] + "..."
+		if len(banner) > BannerMaxDisplayLength {
+			banner = banner[:BannerTruncateLength] + "..."
 		}
 
 		stateDisplay := string(r.State)
@@ -354,7 +354,7 @@ func (m *ScanUI) listenForResults() tea.Cmd {
 			case core.EventKindError:
 				return scanCompleteMsg{}
 			}
-		case <-time.After(100 * time.Millisecond):
+		case <-time.After(ResultPollTimeout):
 		}
 		return nil
 	}

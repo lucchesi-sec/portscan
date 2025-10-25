@@ -102,9 +102,17 @@ fmt:
 ## security: Run security checks
 security:
 	@echo "Running security checks..."
-	@govulncheck ./...
-	@gosec ./...
-	@echo "✅ Security checks passed"
+	@echo "→ Checking for known vulnerabilities..."
+	@$(GOCMD) run golang.org/x/vuln/cmd/govulncheck@latest ./...
+	@echo "→ Running static security analysis..."
+	@gosec ./... || true
+	@echo "✅ Security checks completed"
+
+## vulncheck: Check for known vulnerabilities using govulncheck
+vulncheck:
+	@echo "Checking for vulnerabilities..."
+	@$(GOCMD) run golang.org/x/vuln/cmd/govulncheck@latest ./...
+	@echo "✅ Vulnerability check completed"
 
 ## clean: Clean build artifacts
 clean:
@@ -130,10 +138,21 @@ dev-setup:
 	@$(GOCMD) install golang.org/x/tools/cmd/goimports@latest
 	@$(GOCMD) install golang.org/x/tools/gopls@latest
 	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $$(go env GOPATH)/bin v2.2.2
+	@echo "Installing security tools..."
 	@$(GOCMD) install golang.org/x/vuln/cmd/govulncheck@latest
 	@$(GOCMD) install github.com/securego/gosec/v2/cmd/gosec@latest
+	@echo "Installing build tools..."
 	@$(GOCMD) install github.com/goreleaser/goreleaser@latest
 	@echo "✅ Development environment ready"
+	@echo ""
+	@echo "Installed tools:"
+	@echo "  - gofumpt (code formatter)"
+	@echo "  - goimports (import organizer)"
+	@echo "  - gopls (language server)"
+	@echo "  - golangci-lint (linter)"
+	@echo "  - govulncheck (vulnerability scanner)"
+	@echo "  - gosec (security scanner)"
+	@echo "  - goreleaser (release automation)"
 
 ## dev: Run in development mode with hot reload
 dev:

@@ -159,3 +159,173 @@ func TestProgressTracker_GetETA_Complete(t *testing.T) {
 		t.Errorf("expected ETA 0 when complete, got %v", eta)
 	}
 }
+
+func TestGetStatusLine_NotPaused(t *testing.T) {
+	tracker := NewProgressTracker(1000)
+	tracker.Update(500, 10, 480, 10, 1000.0)
+
+	status := tracker.GetStatusLine()
+
+	if status == "" {
+		t.Error("GetStatusLine returned empty string")
+	}
+
+	// Should contain key information
+	if !contains(status, "50.0%") {
+		t.Errorf("status line should contain progress percentage: %s", status)
+	}
+
+	if !contains(status, "500/1000") {
+		t.Errorf("status line should contain scanned/total: %s", status)
+	}
+
+	if !contains(status, "pps") {
+		t.Errorf("status line should contain speed: %s", status)
+	}
+}
+
+func TestGetStatusLine_Paused(t *testing.T) {
+	tracker := NewProgressTracker(1000)
+	tracker.Update(500, 10, 480, 10, 1000.0)
+	tracker.Pause()
+
+	status := tracker.GetStatusLine()
+
+	if !contains(status, "PAUSED") {
+		t.Errorf("status line should indicate paused state: %s", status)
+	}
+}
+
+func TestGetStatusLine_Complete(t *testing.T) {
+	tracker := NewProgressTracker(100)
+	tracker.Update(100, 10, 85, 5, 500.0)
+
+	status := tracker.GetStatusLine()
+
+	if !contains(status, "100.0%") {
+		t.Errorf("status line should show 100%% completion: %s", status)
+	}
+}
+
+func TestGetDetailedStats(t *testing.T) {
+	tracker := NewProgressTracker(1000)
+	tracker.Update(500, 25, 450, 25, 1000.0)
+
+	stats := tracker.GetDetailedStats()
+
+	if stats == "" {
+		t.Error("GetDetailedStats returned empty string")
+	}
+
+	// Should contain counts
+	if !contains(stats, "Open: 25") {
+		t.Errorf("stats should contain open count: %s", stats)
+	}
+
+	if !contains(stats, "Closed: 450") {
+		t.Errorf("stats should contain closed count: %s", stats)
+	}
+
+	if !contains(stats, "Filtered: 25") {
+		t.Errorf("stats should contain filtered count: %s", stats)
+	}
+
+	if !contains(stats, "pps") {
+		t.Errorf("stats should contain average speed: %s", stats)
+	}
+}
+
+func TestGetDetailedStats_NoActivity(t *testing.T) {
+	tracker := NewProgressTracker(1000)
+
+	stats := tracker.GetDetailedStats()
+
+	if stats == "" {
+		t.Error("GetDetailedStats returned empty string")
+	}
+
+	// Should show zeros
+	if !contains(stats, "Open: 0") {
+		t.Errorf("stats should show zero open ports: %s", stats)
+	}
+}
+
+func TestFormatDuration_Zero(t *testing.T) {
+	formatted := formatDuration(0)
+	if formatted != "--:--" {
+		t.Errorf("formatDuration(0) = %q; want %q", formatted, "--:--")
+	}
+}
+
+func TestFormatDuration_Negative(t *testing.T) {
+	formatted := formatDuration(-5 * time.Second)
+	if formatted != "--:--" {
+		t.Errorf("formatDuration(-5s) = %q; want %q", formatted, "--:--")
+	}
+}
+
+func TestFormatDuration_Seconds(t *testing.T) {
+	formatted := formatDuration(45 * time.Second)
+	if formatted != "00:45" {
+		t.Errorf("formatDuration(45s) = %q; want %q", formatted, "00:45")
+	}
+}
+
+func TestFormatDuration_Minutes(t *testing.T) {
+	formatted := formatDuration(2*time.Minute + 30*time.Second)
+	if formatted != "02:30" {
+		t.Errorf("formatDuration(2m30s) = %q; want %q", formatted, "02:30")
+	}
+}
+
+func TestFormatDuration_Hours(t *testing.T) {
+	formatted := formatDuration(1*time.Hour + 15*time.Minute + 30*time.Second)
+	if formatted != "01:15:30" {
+		t.Errorf("formatDuration(1h15m30s) = %q; want %q", formatted, "01:15:30")
+	}
+}
+
+func TestFormatDuration_MultipleHours(t *testing.T) {
+	formatted := formatDuration(12*time.Hour + 5*time.Minute + 3*time.Second)
+	if formatted != "12:05:03" {
+		t.Errorf("formatDuration(12h5m3s) = %q; want %q", formatted, "12:05:03")
+	}
+}
+
+func TestFormatDuration_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		duration time.Duration
+		expected string
+	}{
+		{"1 millisecond", 1 * time.Millisecond, "00:00"},
+		{"999 milliseconds", 999 * time.Millisecond, "00:00"},
+		{"1 second", 1 * time.Second, "00:01"},
+		{"59 seconds", 59 * time.Second, "00:59"},
+		{"1 minute", 1 * time.Minute, "01:00"},
+		{"59 minutes 59 seconds", 59*time.Minute + 59*time.Second, "59:59"},
+		{"1 hour", 1 * time.Hour, "01:00:00"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			formatted := formatDuration(tt.duration)
+			if formatted != tt.expected {
+				t.Errorf("formatDuration(%v) = %q; want %q", tt.duration, formatted, tt.expected)
+			}
+		})
+	}
+}
+
+// Helper function to check if a string contains a substring
+func contains(s, substr string) bool {
+	if len(substr) > len(s) {
+		return false
+	}
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}

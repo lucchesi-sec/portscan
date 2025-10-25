@@ -2,21 +2,19 @@ package core
 
 import (
 	"context"
-	"math"
 	"math/rand"
 	"net"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
 type Scanner struct {
-	config     *Config
-	results    chan Event
-	rateTicker *time.Ticker
-	wg         sync.WaitGroup
-	completed  atomic.Uint64
+	config           *Config
+	results          chan Event
+	rateTicker       *time.Ticker
+	wg               sync.WaitGroup
+	progressReporter *ProgressReporter
 }
 
 type Config struct {
@@ -33,10 +31,10 @@ type Config struct {
 
 func NewScanner(cfg *Config) *Scanner {
 	if cfg.Workers <= 0 {
-		cfg.Workers = 100
+		cfg.Workers = DefaultWorkerCount
 	}
 	if cfg.Timeout <= 0 {
-		cfg.Timeout = 200 * time.Millisecond
+		cfg.Timeout = DefaultTimeoutMs * time.Millisecond
 	}
 	// Set default UDP read timeout if not specified
 	if cfg.UDPReadTimeout <= 0 {
@@ -45,18 +43,18 @@ func NewScanner(cfg *Config) *Scanner {
 	}
 	// Set default UDP buffer size if not specified
 	if cfg.UDPBufferSize <= 0 {
-		cfg.UDPBufferSize = 1024 // 1KB buffer for UDP responses
+		cfg.UDPBufferSize = DefaultUDPBufferSize
 	}
 	// Set default UDP jitter if not specified
 	if cfg.UDPJitterMaxMs <= 0 {
-		cfg.UDPJitterMaxMs = 10 // 10ms max jitter for UDP scanning
+		cfg.UDPJitterMaxMs = DefaultUDPJitterMaxMs
 	}
 	if cfg.RateLimit < 0 {
 		cfg.RateLimit = 0
 	}
 	// Set default UDP worker ratio if not specified
 	if cfg.UDPWorkerRatio <= 0 {
-		cfg.UDPWorkerRatio = 0.5 // Default to half of TCP workers
+		cfg.UDPWorkerRatio = DefaultUDPWorkerRatio
 	}
 
 	var ticker *time.Ticker
@@ -65,10 +63,12 @@ func NewScanner(cfg *Config) *Scanner {
 		ticker = time.NewTicker(interval)
 	}
 
+	resultsChan := make(chan Event, ResultChannelBufferSize)
 	return &Scanner{
-		config:     cfg,
-		results:    make(chan Event, 1000),
-		rateTicker: ticker,
+		config:           cfg,
+		results:          resultsChan,
+		rateTicker:       ticker,
+		progressReporter: NewProgressReporter(resultsChan),
 	}
 }
 
@@ -85,10 +85,10 @@ func (s *Scanner) ScanTargets(ctx context.Context, targets []ScanTarget) {
 		return
 	}
 
-	s.completed.Store(0)
+	s.progressReporter.SetCompleted(0)
 
 	jobs := make(chan scanJob, totalPorts)
-	progressDone := s.startProgressReporter(ctx, totalPorts)
+	progressDone := s.progressReporter.StartReporting(ctx, totalPorts)
 
 	s.startWorkers(ctx, jobs)
 
@@ -97,15 +97,6 @@ func (s *Scanner) ScanTargets(ctx context.Context, targets []ScanTarget) {
 	s.wg.Wait()
 
 	s.finishScan(ctx, progressDone)
-}
-
-func (s *Scanner) startProgressReporter(ctx context.Context, total int) <-chan struct{} {
-	done := make(chan struct{})
-	go func() {
-		s.progressReporter(ctx, total)
-		close(done)
-	}()
-	return done
 }
 
 func (s *Scanner) startWorkers(ctx context.Context, jobs <-chan scanJob) {
@@ -253,12 +244,12 @@ func (s *Scanner) retryBackoff(attempt int) time.Duration {
 		attempt = 0
 	}
 
-	base := time.Duration(attempt+1) * 50 * time.Millisecond
+	base := time.Duration(attempt+1) * RetryBackoffBase
 	if base > s.config.Timeout {
 		base = s.config.Timeout
 	}
 
-	jitter := time.Duration(rand.Intn(41)+10) * time.Millisecond
+	jitter := time.Duration(rand.Intn(RetryJitterRangeMs)+RetryJitterMinMs) * time.Millisecond
 	return base + jitter
 }
 
@@ -266,58 +257,17 @@ func (s *Scanner) emitResult(ctx context.Context, result ResultEvent) {
 	evt := NewResultEvent(result)
 	select {
 	case s.results <- evt:
-		s.completed.Add(1)
+		s.progressReporter.IncrementCompleted()
 	case <-ctx.Done():
 	}
 }
 
 func (s *Scanner) grabBanner(conn net.Conn) string {
-	_ = conn.SetReadDeadline(time.Now().Add(time.Second))
-	buffer := make([]byte, 512)
+	_ = conn.SetReadDeadline(time.Now().Add(BannerGrabTimeout))
+	buffer := make([]byte, BannerBufferSize)
 	n, err := conn.Read(buffer)
 	if err != nil || n == 0 {
 		return ""
 	}
 	return string(buffer[:n])
-}
-
-func (s *Scanner) progressReporter(ctx context.Context, total int) {
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-	startTime := time.Now()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			completedUint := s.completed.Load()
-			// Safely convert to int with proper bounds checking
-			var completed int
-			if completedUint > math.MaxInt32 {
-				completed = math.MaxInt32
-			} else {
-				completed = int(completedUint) // #nosec G115 - safe after bounds check
-			}
-			if completed > total {
-				completed = total
-			}
-			elapsed := time.Since(startTime).Seconds()
-			if elapsed <= 0 {
-				elapsed = 0.001
-			}
-			rate := float64(completed) / elapsed
-
-			progress := ProgressEvent{Total: total, Completed: completed, Rate: rate}
-			select {
-			case s.results <- NewProgressEvent(progress):
-			case <-ctx.Done():
-				return
-			}
-
-			if completed >= total {
-				return
-			}
-		}
-	}
 }

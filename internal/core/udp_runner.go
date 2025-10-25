@@ -10,10 +10,10 @@ func (s *UDPScanner) ScanTargets(ctx context.Context, targets []ScanTarget) {
 		return
 	}
 
-	s.completed.Store(0)
+	s.progressReporter.SetCompleted(0)
 
 	jobs := make(chan scanJob, totalPorts)
-	progressDone := s.startProgressReporter(ctx, totalPorts)
+	progressDone := s.progressReporter.StartReporting(ctx, totalPorts)
 
 	s.startUDPWorkers(ctx, jobs)
 

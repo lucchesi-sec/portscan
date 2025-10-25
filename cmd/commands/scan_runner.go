@@ -74,63 +74,23 @@ func runScan(cmd *cobra.Command, args []string) error {
 
 	monitorInterrupts(cancel)
 
-	protocol := cfg.Protocol
-	if protocol == "" {
-		protocol = "tcp"
-	}
-
-	scannerCfg := buildScannerConfig(cfg)
-
-	switch protocol {
-	case "udp":
-		return runProtocolScan(ctx, core.NewUDPScanner(scannerCfg), resolvedTargets, ports, cfg, "udp")
-	case "both":
-		if err := runProtocolScan(ctx, core.NewScanner(scannerCfg), resolvedTargets, ports, cfg, "tcp"); err != nil {
-			return err
-		}
-		return runProtocolScan(ctx, core.NewUDPScanner(scannerCfg), resolvedTargets, ports, cfg, "udp")
-	default:
-		return runProtocolScan(ctx, core.NewScanner(scannerCfg), resolvedTargets, ports, cfg, "tcp")
-	}
+	protocol := normalizeProtocol(cfg.Protocol)
+	return executeScan(ctx, protocol, resolvedTargets, ports, cfg)
 }
 
-func runProtocolScan(ctx context.Context, scanner interface{}, hosts []string, ports []uint16, cfg *config.Config, _ string) error {
+func runProtocolScan(ctx context.Context, scanner core.PortScanner, hosts []string, ports []uint16, cfg *config.Config, _ string) error {
 	if len(hosts) == 0 {
 		return errors.NoTargetError()
 	}
 
-	scanTargets := make([]core.ScanTarget, len(hosts))
-	for i, host := range hosts {
-		scanTargets[i] = core.ScanTarget{Host: host, Ports: ports}
-	}
-
-	var events <-chan core.Event
-	switch s := scanner.(type) {
-	case *core.Scanner:
-		events = s.Results()
-		go s.ScanTargets(ctx, scanTargets)
-	case *core.UDPScanner:
-		events = s.Results()
-		go s.ScanTargets(ctx, scanTargets)
-	default:
-		return fmt.Errorf("unsupported scanner type")
-	}
+	scanTargets := buildScanTargets(hosts, ports)
+	events := scanner.Results()
+	go scanner.ScanTargets(ctx, scanTargets)
 
 	totalPorts := len(ports) * len(hosts)
 	metadata := exporter.ScanMetadata{Targets: hosts, TotalPorts: totalPorts, Rate: cfg.Rate}
 
-	switch {
-	case viper.GetBool("json") || cfg.Output == "json":
-		exporter := selectJSONExporter(metadata)
-		return streamEvents(events, exporter.Export, exporter.Close)
-	case cfg.Output == "csv":
-		exporter := exporter.NewCSVExporter(os.Stdout)
-		return streamEvents(events, exporter.Export, exporter.Close)
-	default:
-		onlyOpen := viper.GetBool("only_open")
-		tui := ui.NewScanUI(cfg, totalPorts, events, onlyOpen)
-		return tui.Run()
-	}
+	return handleScanOutput(cfg, events, totalPorts, metadata)
 }
 
 func selectJSONExporter(meta exporter.ScanMetadata) *exporter.JSONExporter {
@@ -166,9 +126,8 @@ func ensureWorkersConfigured(cfg *config.Config) {
 }
 
 func enforceRateSafety(rate int) error {
-	const maxSafeRate = 15000
-	if rate > maxSafeRate {
-		return errors.RateLimitError(rate, maxSafeRate)
+	if rate > core.MaxSafeRateLimit {
+		return errors.RateLimitError(rate, core.MaxSafeRateLimit)
 	}
 	return nil
 }
@@ -190,6 +149,75 @@ func buildScannerConfig(cfg *config.Config) *core.Config {
 		BannerGrab:     cfg.Banners,
 		MaxRetries:     2,
 		UDPWorkerRatio: cfg.UDPWorkerRatio,
+	}
+}
+
+// normalizeProtocol ensures the protocol string is valid and defaults to "tcp".
+func normalizeProtocol(protocol string) string {
+	if protocol == "" {
+		return "tcp"
+	}
+	return protocol
+}
+
+// buildScanTargets creates a slice of ScanTarget from hosts and ports.
+func buildScanTargets(hosts []string, ports []uint16) []core.ScanTarget {
+	scanTargets := make([]core.ScanTarget, len(hosts))
+	for i, host := range hosts {
+		scanTargets[i] = core.ScanTarget{Host: host, Ports: ports}
+	}
+	return scanTargets
+}
+
+// executeScan executes the scan based on the protocol (tcp, udp, or both).
+func executeScan(ctx context.Context, protocol string, hosts []string, ports []uint16, cfg *config.Config) error {
+	factory := NewScannerFactory(cfg)
+
+	switch protocol {
+	case "udp":
+		scanner, err := factory.CreateScanner("udp")
+		if err != nil {
+			return err
+		}
+		return runProtocolScan(ctx, scanner, hosts, ports, cfg, "udp")
+
+	case "both":
+		tcpScanner, err := factory.CreateScanner("tcp")
+		if err != nil {
+			return err
+		}
+		if err := runProtocolScan(ctx, tcpScanner, hosts, ports, cfg, "tcp"); err != nil {
+			return err
+		}
+
+		udpScanner, err := factory.CreateScanner("udp")
+		if err != nil {
+			return err
+		}
+		return runProtocolScan(ctx, udpScanner, hosts, ports, cfg, "udp")
+
+	default:
+		scanner, err := factory.CreateScanner("tcp")
+		if err != nil {
+			return err
+		}
+		return runProtocolScan(ctx, scanner, hosts, ports, cfg, "tcp")
+	}
+}
+
+// handleScanOutput routes scan results to the appropriate output handler (TUI, JSON, CSV).
+func handleScanOutput(cfg *config.Config, events <-chan core.Event, totalPorts int, metadata exporter.ScanMetadata) error {
+	switch {
+	case viper.GetBool("json") || cfg.Output == "json":
+		exporter := selectJSONExporter(metadata)
+		return streamEvents(events, exporter.Export, exporter.Close)
+	case cfg.Output == "csv":
+		exporter := exporter.NewCSVExporter(os.Stdout)
+		return streamEvents(events, exporter.Export, exporter.Close)
+	default:
+		onlyOpen := viper.GetBool("only_open")
+		tui := ui.NewScanUI(cfg, totalPorts, events, onlyOpen)
+		return tui.Run()
 	}
 }
 
