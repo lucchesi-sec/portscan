@@ -108,3 +108,58 @@ func (t Theme) WarningStyle() lipgloss.Style {
 	return lipgloss.NewStyle().
 		Foreground(t.Warning)
 }
+
+// StateColors defines colors for different port states
+type StateColors struct {
+	Open      lipgloss.Color
+	Closed    lipgloss.Color
+	Filtered  lipgloss.Color
+}
+
+// GetStateColors returns the color scheme for port states based on the theme
+func (t Theme) GetStateColors() StateColors {
+	return StateColors{
+		Open:     lipgloss.Color("#00FF00"), // Green for open ports
+		Closed:   lipgloss.Color("#FF0000"), // Red for closed ports
+		Filtered: lipgloss.Color("#FFA500"), // Orange for filtered ports
+	}
+}
+
+// ModalStyle returns the style for modal dialogs (padding parameter to avoid import cycle)
+func (t Theme) ModalStyle(padding int) lipgloss.Style {
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(t.Primary).
+		Background(t.Background).
+		Foreground(t.Foreground).
+		Padding(padding)
+}
+
+// ModalOverlayStyle returns the style for the semi-transparent overlay
+func (t Theme) ModalOverlayStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Background(t.Background).
+		Foreground(lipgloss.Color("240")) // Dimmed overlay
+}
+
+// GetRowStyle returns the appropriate styling for a table row based on port state
+func (t Theme) GetRowStyle(state string) lipgloss.Style {
+	stateColors := t.GetStateColors()
+	
+	switch state {
+	case "open":
+		return lipgloss.NewStyle().
+			Foreground(stateColors.Open).
+			Background(lipgloss.Color("")) // Transparent background for contrast
+	case "closed":
+		return lipgloss.NewStyle().
+			Foreground(stateColors.Closed).
+			Background(lipgloss.Color("")) // Transparent background for contrast
+	case "filtered":
+		return lipgloss.NewStyle().
+			Foreground(stateColors.Filtered).
+			Background(lipgloss.Color("")) // Transparent background for contrast
+	default:
+		return lipgloss.NewStyle() // Default styling
+	}
+}

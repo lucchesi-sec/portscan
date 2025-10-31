@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/lucchesi-sec/portscan/internal/core"
+	"github.com/lucchesi-sec/portscan/pkg/theme"
 )
 
 // Update handles messages
@@ -77,6 +78,13 @@ func (m *ScanUI) handleWindowSize(msg tea.WindowSizeMsg) {
 }
 
 func (m *ScanUI) handleKeyMsg(msg tea.KeyMsg) (handled bool, skipTable bool, cmd tea.Cmd) {
+	// Handle modal escape key globally if modal is active
+	if m.modalState.IsActive && key.Matches(msg, m.keys.Escape) {
+		m.modalState.IsActive = false
+		m.modalState.Cursor = 0
+		return true, true, nil
+	}
+
 	if key.Matches(msg, m.keys.Help) {
 		m.showHelp = !m.showHelp
 		m.help.ShowAll = m.showHelp
@@ -88,17 +96,126 @@ func (m *ScanUI) handleKeyMsg(msg tea.KeyMsg) (handled bool, skipTable bool, cmd
 		return true, true, nil
 	}
 
+	// Handle modal key events
+	if m.modalState.IsActive {
+		return m.handleModalKey(msg)
+	}
+
+	// Handle main view key events
 	switch m.viewState {
 	case UIViewHelp:
 		return m.handleHelpKey(msg)
 	case UIViewMain:
 		return m.handleMainKey(msg)
-	case UIViewSortMenu:
-		return m.handleSortMenuKey(msg)
-	case UIViewFilterMenu:
-		return m.handleFilterMenuKey(msg)
+	case UIViewSortModal:
+		// Legacy support - convert to modal
+		m.openModal(ModalSort)
+		m.viewState = UIViewMain
+		return true, true, nil
+	case UIViewFilterModal:
+		// Legacy support - convert to modal
+		m.openModal(ModalFilter)
+		m.viewState = UIViewMain
+		return true, true, nil
 	default:
 		return false, false, nil
+	}
+}
+
+func (m *ScanUI) handleModalKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
+	switch m.modalState.Type {
+	case ModalSort:
+		return m.handleSortModalKey(msg)
+	case ModalFilter:
+		return m.handleFilterModalKey(msg)
+	case ModalDetails:
+		return m.handleDetailsModalKey(msg)
+	default:
+		return true, true, nil
+	}
+}
+
+func (m *ScanUI) handleSortModalKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k":
+		m.modalState.Cursor = max(0, m.modalState.Cursor-1)
+		return true, true, nil
+	case "down", "j":
+		m.modalState.Cursor = min(7, m.modalState.Cursor+1)
+		return true, true, nil
+	case "enter":
+		switch m.modalState.Cursor {
+		case 0:
+			m.sortState.SetMode(SortByPort)
+		case 1:
+			m.sortState.SetMode(SortByPortDesc)
+		case 2:
+			m.sortState.SetMode(SortByHost)
+		case 3:
+			m.sortState.SetMode(SortByState)
+		case 4:
+			m.sortState.SetMode(SortByService)
+		case 5:
+			m.sortState.SetMode(SortByLatency)
+		case 6:
+			m.sortState.SetMode(SortByLatencyDesc)
+		case 7:
+			m.sortState.SetMode(SortByDiscovery)
+		}
+		m.updateTable()
+		m.modalState.IsActive = false
+		m.modalState.Cursor = 0
+		return true, true, nil
+	default:
+		return true, true, nil
+	}
+}
+
+func (m *ScanUI) handleFilterModalKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k":
+		m.modalState.Cursor = max(0, m.modalState.Cursor-1)
+		return true, true, nil
+	case "down", "j":
+		m.modalState.Cursor = min(3, m.modalState.Cursor+1)
+		return true, true, nil
+	case "enter":
+		switch m.modalState.Cursor {
+		case 0:
+			m.filterState.SetStateFilter(StateFilterAll)
+		case 1:
+			m.filterState.SetStateFilter(StateFilterOpen)
+		case 2:
+			m.filterState.SetStateFilter(StateFilterClosed)
+		case 3:
+			m.filterState.SetStateFilter(StateFilterFiltered)
+		}
+		m.updateTable()
+		m.modalState.IsActive = false
+		m.modalState.Cursor = 0
+		return true, true, nil
+	default:
+		return true, true, nil
+	}
+}
+
+func (m *ScanUI) handleDetailsModalKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k":
+		// Scroll up if content is scrollable
+		if m.modalState.ScrollPosition > 0 {
+			m.modalState.ScrollPosition--
+		}
+		return true, true, nil
+	case "down", "j":
+		// Scroll down if there's more content
+		maxScroll := max(0, m.modalState.MaxScrollHeight-maxModalContentHeight)
+		if m.modalState.ScrollPosition < maxScroll {
+			m.modalState.ScrollPosition++
+		}
+		return true, true, nil
+	default:
+		return true, true, nil
 	}
 }
 
@@ -108,6 +225,29 @@ func (m *ScanUI) handleHelpKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
 		m.viewState = UIViewMain
 	}
 	return true, true, nil
+}
+
+// Helper functions
+func (m *ScanUI) openModal(modalType ModalType) {
+	m.modalState.IsActive = true
+	m.modalState.Type = modalType
+	m.modalState.Cursor = 0
+	m.modalState.ScrollPosition = 0
+	m.modalState.MaxScrollHeight = 0
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func (m *ScanUI) handleMainKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
@@ -127,10 +267,15 @@ func (m *ScanUI) handleMainKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
 	case key.Matches(msg, m.keys.Clear):
 		return true, true, tea.ClearScreen
 	case key.Matches(msg, m.keys.Sort):
-		m.viewState = UIViewSortMenu
+		m.openModal(ModalSort)
 		return true, true, nil
 	case key.Matches(msg, m.keys.Filter):
-		m.viewState = UIViewFilterMenu
+		m.openModal(ModalFilter)
+		return true, true, nil
+	case key.Matches(msg, m.keys.Enter):
+		if len(m.displayResults) > 0 {
+			m.openModal(ModalDetails)
+		}
 		return true, true, nil
 	case key.Matches(msg, m.keys.Reset):
 		m.filterState.Reset()
@@ -175,69 +320,50 @@ func (m *ScanUI) handleMainKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
 	}
 }
 
-func (m *ScanUI) handleSortMenuKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
-	switch msg.String() {
-	case "1":
-		m.sortState.SetMode(SortByPort)
-	case "2":
-		m.sortState.SetMode(SortByPortDesc)
-	case "3":
-		m.sortState.SetMode(SortByHost)
-	case "4":
-		m.sortState.SetMode(SortByState)
-	case "5":
-		m.sortState.SetMode(SortByService)
-	case "6":
-		m.sortState.SetMode(SortByLatency)
-	case "7":
-		m.sortState.SetMode(SortByLatencyDesc)
-	case "8":
-		m.sortState.SetMode(SortByDiscovery)
-	case "q", "esc":
-		m.viewState = UIViewMain
-		return true, true, nil
-	default:
-		return true, true, nil
-	}
 
-	m.viewState = UIViewMain
-	m.updateTable()
-	return true, true, nil
-}
-
-func (m *ScanUI) handleFilterMenuKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
-	switch msg.String() {
-	case "1":
-		m.filterState.SetStateFilter(StateFilterAll)
-	case "2":
-		m.filterState.SetStateFilter(StateFilterOpen)
-	case "3":
-		m.filterState.SetStateFilter(StateFilterClosed)
-	case "4":
-		m.filterState.SetStateFilter(StateFilterFiltered)
-	case "q", "esc":
-		m.viewState = UIViewMain
-		return true, true, nil
-	default:
-		return true, true, nil
-	}
-
-	m.viewState = UIViewMain
-	m.updateTable()
-	return true, true, nil
-}
 
 func (m *ScanUI) handleScanResult(msg scanResultMsg) {
 	m.results.Append(msg.result)
 	m.stats.Add(msg.result)
 	m.updateTable()
 	total, open, closed, filtered := m.stats.Totals()
+	
+	// Calculate host metrics
+	hostsScanned := m.calculateHostsScanned()
+	
+	// Update progress with host tracking
 	m.progressTrack.Update(total, open, closed, filtered, m.currentRate)
+	m.progressTrack.UpdateHosts(m.calculateTotalHosts(), hostsScanned)
 
 	// Update dashboard stats if visible
 	if m.showDashboard {
 		m.statsData = m.computeStats()
 	}
+}
+
+// calculateHostsScanned determines how many unique hosts have been scanned
+func (m *ScanUI) calculateHostsScanned() int {
+	hosts := make(map[string]bool)
+	results := m.results.Items()
+	
+	for _, result := range results {
+		hosts[result.Host] = true
+	}
+	
+	return len(hosts)
+}
+
+// calculateTotalHosts returns the total number of unique hosts being scanned
+// This is an estimation based on the configuration and known targets
+func (m *ScanUI) calculateTotalHosts() int {
+	hosts := make(map[string]bool)
+	results := m.results.Items()
+
+	for _, result := range results {
+		hosts[result.Host] = true
+	}
+
+	return len(hosts)
 }
 
 func (m *ScanUI) handleScanProgress(msg scanProgressMsg) {
@@ -252,6 +378,10 @@ func (m *ScanUI) handleScanProgress(msg scanProgressMsg) {
 		scanned = total
 	}
 
+	// Calculate host metrics
+	hostsScanned := m.calculateHostsScanned()
+	totalHosts := m.calculateTotalHosts()
+	
 	m.progressTrack.Update(
 		scanned,
 		open,
@@ -259,6 +389,30 @@ func (m *ScanUI) handleScanProgress(msg scanProgressMsg) {
 		filtered,
 		m.currentRate,
 	)
+	m.progressTrack.UpdateHosts(totalHosts, hostsScanned)
+
+	// Update sparkline data
+	if m.sparklineData != nil {
+		m.sparklineData.AddScanRate(msg.progress.Rate)
+
+		// Calculate discovery rate (new open ports since last update)
+		newlyOpen := open - m.previousOpenCount
+		discoveryRate := 0.0
+
+		// Estimate rate based on scan rate (assumes proportional discovery)
+		if msg.progress.Rate > 0 && scanned > 0 {
+			discoveryRate = float64(newlyOpen) * msg.progress.Rate / float64(scanned-open)
+			if discoveryRate < 0 {
+				discoveryRate = 0
+			}
+		}
+
+		m.sparklineData.AddDiscoveryRate(discoveryRate)
+		m.previousOpenCount = open
+
+		// For now, error rate is 0 (we don't track errors explicitly yet)
+		m.sparklineData.AddErrorRate(0.0)
+	}
 }
 
 func (m *ScanUI) handleSpinnerTick(msg spinner.TickMsg) tea.Cmd {
@@ -306,18 +460,19 @@ func (m *ScanUI) updateTable() {
 	filtered := m.filterState.ApplyFilters(baseResults)
 	m.displayResults = m.sortState.ApplySort(filtered)
 
+	stateColors := m.theme.GetStateColors()
+
 	var rows []table.Row
 	for _, r := range m.displayResults {
+		rowStyle := m.theme.GetRowStyle(string(r.State))
+		
 		service := getServiceName(r.Port)
 		banner := r.Banner
 		if len(banner) > BannerMaxDisplayLength {
 			banner = banner[:BannerTruncateLength] + "..."
 		}
 
-		stateDisplay := string(r.State)
-		if r.State == core.StateOpen {
-			stateDisplay = lipgloss.NewStyle().Foreground(m.theme.Success).Render(stateDisplay)
-		}
+		stateDisplay := m.getRowStateDisplay(r, stateColors)
 
 		protocol := r.Protocol
 		if protocol == "" {
@@ -325,17 +480,34 @@ func (m *ScanUI) updateTable() {
 		}
 		protocol = strings.ToUpper(protocol)
 
-		rows = append(rows, table.Row{
-			r.Host,
-			fmt.Sprintf("%d", r.Port),
-			protocol,
-			stateDisplay,
-			service,
-			banner,
-			fmt.Sprintf("%dms", r.Duration.Milliseconds()),
-		})
+		// Apply row style to each cell content
+		row := table.Row{
+			rowStyle.Render(r.Host),
+			rowStyle.Render(fmt.Sprintf("%d", r.Port)),
+			rowStyle.Render(protocol),
+			stateDisplay, // Keep stateDisplay as it already has coloring
+			rowStyle.Render(service),
+			rowStyle.Render(banner),
+			rowStyle.Render(fmt.Sprintf("%dms", r.Duration.Milliseconds())),
+		}
+
+		rows = append(rows, row)
 	}
+	
 	m.table.SetRows(rows)
+}
+
+func (m *ScanUI) getRowStateDisplay(result core.ResultEvent, colors theme.StateColors) string {
+	stateStyle := lipgloss.NewStyle()
+	switch result.State {
+	case core.StateOpen:
+		stateStyle = stateStyle.Foreground(colors.Open)
+	case core.StateClosed:
+		stateStyle = stateStyle.Foreground(colors.Closed)
+	case core.StateFiltered:
+		stateStyle = stateStyle.Foreground(colors.Filtered)
+	}
+	return stateStyle.Render(string(result.State))
 }
 
 func (m *ScanUI) listenForResults() tea.Cmd {

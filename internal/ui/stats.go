@@ -145,7 +145,32 @@ func (m *ScanUI) computeStats() *StatsData {
 	stats.CurrentRate = m.currentRate
 	stats.AverageRate = m.progressTrack.AverageRate
 
+	// Update progress tracker with latest host metrics
+	if stats.UniqueHosts > 0 {
+		m.progressTrack.UpdateHosts(stats.UniqueHosts, stats.UniqueHosts) // All discovered hosts so far
+	}
+
 	return stats
+}
+
+// GetHostStats provides enhanced host statistics for breadcrumb display
+func (m *ScanUI) GetHostStats() (current int, total int, withOpen int) {
+	results := m.results.Items()
+	if len(results) == 0 {
+		return 0, 0, 0
+	}
+
+	uniqueHosts := make(map[string]bool)
+	hostsWithOpen := make(map[string]bool)
+
+	for _, result := range results {
+		uniqueHosts[result.Host] = true
+		if result.State == core.StateOpen {
+			hostsWithOpen[result.Host] = true
+		}
+	}
+
+	return len(uniqueHosts), len(uniqueHosts), len(hostsWithOpen) // current=total for now since we only know what we've scanned
 }
 
 // getPercentage calculates percentage

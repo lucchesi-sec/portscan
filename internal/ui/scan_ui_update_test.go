@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -136,8 +137,8 @@ func TestScanUI_HandleKeyMsg_SortMenu(t *testing.T) {
 		t.Error("sort key should skip table update")
 	}
 
-	if ui.viewState != UIViewSortMenu {
-		t.Error("view state should be sort menu")
+	if !ui.modalState.IsActive || ui.modalState.Type != ModalSort {
+		t.Error("sort modal should be active")
 	}
 }
 
@@ -161,8 +162,8 @@ func TestScanUI_HandleKeyMsg_FilterMenu(t *testing.T) {
 		t.Error("filter key should skip table update")
 	}
 
-	if ui.viewState != UIViewFilterMenu {
-		t.Error("view state should be filter menu")
+	if !ui.modalState.IsActive || ui.modalState.Type != ModalFilter {
+		t.Error("filter modal should be active")
 	}
 }
 
@@ -326,34 +327,38 @@ func TestScanUI_HandleHelpKey(t *testing.T) {
 	}
 }
 
-// TestScanUI_HandleSortMenuKey tests sort menu key handling
-func TestScanUI_HandleSortMenuKey(t *testing.T) {
+// TestScanUI_HandleSortModalKey tests sort modal key handling
+func TestScanUI_HandleSortModalKey(t *testing.T) {
 	results := make(chan core.Event, 10)
 	close(results)
 
 	cfg := &config.Config{}
 	ui := NewScanUI(cfg, 100, results, false)
-	ui.viewState = UIViewSortMenu
 
 	tests := []struct {
 		name     string
-		key      string
+		cursor   int
 		expected SortMode
 	}{
-		{"port asc", "1", SortByPort},
-		{"port desc", "2", SortByPortDesc},
-		{"host", "3", SortByHost},
-		{"state", "4", SortByState},
-		{"service", "5", SortByService},
-		{"latency asc", "6", SortByLatency},
-		{"latency desc", "7", SortByLatencyDesc},
-		{"discovery", "8", SortByDiscovery},
+		{"port asc", 0, SortByPort},
+		{"port desc", 1, SortByPortDesc},
+		{"host", 2, SortByHost},
+		{"state", 3, SortByState},
+		{"service", 4, SortByService},
+		{"latency asc", 5, SortByLatency},
+		{"latency desc", 6, SortByLatencyDesc},
+		{"discovery", 7, SortByDiscovery},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tt.key)[0:1]}
-			handled, skip, _ := ui.handleSortMenuKey(msg)
+			// Set up modal state
+			ui.modalState.IsActive = true
+			ui.modalState.Type = ModalSort
+			ui.modalState.Cursor = tt.cursor
+
+			msg := tea.KeyMsg{Type: tea.KeyEnter}
+			handled, skip, _ := ui.handleKeyMsg(msg)
 
 			if !handled {
 				t.Error("sort selection should be handled")
@@ -363,19 +368,50 @@ func TestScanUI_HandleSortMenuKey(t *testing.T) {
 				t.Error("sort selection should skip table update")
 			}
 
-			if ui.sortState.Mode != tt.expected {
-				t.Errorf("sort mode = %v; want %v", ui.sortState.Mode, tt.expected)
+			// Modal should be closed after selection
+			if ui.modalState.IsActive {
+				t.Error("modal should be closed after selection")
 			}
 
-			if ui.viewState != UIViewMain {
-				t.Error("view state should return to main")
+			// Verify sort mode changed
+			if ui.sortState.Mode != tt.expected {
+				t.Errorf("sort mode = %v; want %v", ui.sortState.Mode, tt.expected)
 			}
 		})
 	}
 
-	// Test escape from sort menu
+	// Test navigation
+	t.Run("navigation up", func(t *testing.T) {
+		ui.modalState.IsActive = true
+		ui.modalState.Type = ModalSort
+		ui.modalState.Cursor = 2
+
+		msg := tea.KeyMsg{Type: tea.KeyUp}
+		ui.handleKeyMsg(msg)
+
+		if ui.modalState.Cursor != 1 {
+			t.Errorf("cursor = %d; want 1", ui.modalState.Cursor)
+		}
+	})
+
+	t.Run("navigation down", func(t *testing.T) {
+		ui.modalState.IsActive = true
+		ui.modalState.Type = ModalSort
+		ui.modalState.Cursor = 2
+
+		msg := tea.KeyMsg{Type: tea.KeyDown}
+		ui.handleKeyMsg(msg)
+
+		if ui.modalState.Cursor != 3 {
+			t.Errorf("cursor = %d; want 3", ui.modalState.Cursor)
+		}
+	})
+
+	// Test escape closes modal
+	ui.modalState.IsActive = true
+	ui.modalState.Type = ModalSort
 	msg := tea.KeyMsg{Type: tea.KeyEsc}
-	handled, skip, _ := ui.handleSortMenuKey(msg)
+	handled, skip, _ := ui.handleKeyMsg(msg)
 
 	if !handled {
 		t.Error("escape should be handled")
@@ -385,35 +421,39 @@ func TestScanUI_HandleSortMenuKey(t *testing.T) {
 		t.Error("escape should skip table update")
 	}
 
-	if ui.viewState != UIViewMain {
-		t.Error("view state should return to main on escape")
+	if ui.modalState.IsActive {
+		t.Error("modal should be closed on escape")
 	}
 }
 
-// TestScanUI_HandleFilterMenuKey tests filter menu key handling
-func TestScanUI_HandleFilterMenuKey(t *testing.T) {
+// TestScanUI_HandleFilterModalKey tests filter modal key handling
+func TestScanUI_HandleFilterModalKey(t *testing.T) {
 	results := make(chan core.Event, 10)
 	close(results)
 
 	cfg := &config.Config{}
 	ui := NewScanUI(cfg, 100, results, false)
-	ui.viewState = UIViewFilterMenu
 
 	tests := []struct {
 		name     string
-		key      string
+		cursor   int
 		expected StateFilterType
 	}{
-		{"all", "1", StateFilterAll},
-		{"open", "2", StateFilterOpen},
-		{"closed", "3", StateFilterClosed},
-		{"filtered", "4", StateFilterFiltered},
+		{"all", 0, StateFilterAll},
+		{"open", 1, StateFilterOpen},
+		{"closed", 2, StateFilterClosed},
+		{"filtered", 3, StateFilterFiltered},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tt.key)[0:1]}
-			handled, skip, _ := ui.handleFilterMenuKey(msg)
+			// Set up modal state
+			ui.modalState.IsActive = true
+			ui.modalState.Type = ModalFilter
+			ui.modalState.Cursor = tt.cursor
+
+			msg := tea.KeyMsg{Type: tea.KeyEnter}
+			handled, skip, _ := ui.handleKeyMsg(msg)
 
 			if !handled {
 				t.Error("filter selection should be handled")
@@ -423,19 +463,50 @@ func TestScanUI_HandleFilterMenuKey(t *testing.T) {
 				t.Error("filter selection should skip table update")
 			}
 
-			if ui.filterState.StateFilter != tt.expected {
-				t.Errorf("filter = %v; want %v", ui.filterState.StateFilter, tt.expected)
+			// Modal should be closed after selection
+			if ui.modalState.IsActive {
+				t.Error("modal should be closed after selection")
 			}
 
-			if ui.viewState != UIViewMain {
-				t.Error("view state should return to main")
+			// Verify filter state changed
+			if ui.filterState.StateFilter != tt.expected {
+				t.Errorf("filter state = %v; want %v", ui.filterState.StateFilter, tt.expected)
 			}
 		})
 	}
 
-	// Test escape from filter menu
+	// Test navigation
+	t.Run("navigation up", func(t *testing.T) {
+		ui.modalState.IsActive = true
+		ui.modalState.Type = ModalFilter
+		ui.modalState.Cursor = 2
+
+		msg := tea.KeyMsg{Type: tea.KeyUp}
+		ui.handleKeyMsg(msg)
+
+		if ui.modalState.Cursor != 1 {
+			t.Errorf("cursor = %d; want 1", ui.modalState.Cursor)
+		}
+	})
+
+	t.Run("navigation down", func(t *testing.T) {
+		ui.modalState.IsActive = true
+		ui.modalState.Type = ModalFilter
+		ui.modalState.Cursor = 1
+
+		msg := tea.KeyMsg{Type: tea.KeyDown}
+		ui.handleKeyMsg(msg)
+
+		if ui.modalState.Cursor != 2 {
+			t.Errorf("cursor = %d; want 2", ui.modalState.Cursor)
+		}
+	})
+
+	// Test escape closes modal
+	ui.modalState.IsActive = true
+	ui.modalState.Type = ModalFilter
 	msg := tea.KeyMsg{Type: tea.KeyEsc}
-	handled, skip, _ := ui.handleFilterMenuKey(msg)
+	handled, skip, _ := ui.handleKeyMsg(msg)
 
 	if !handled {
 		t.Error("escape should be handled")
@@ -445,8 +516,72 @@ func TestScanUI_HandleFilterMenuKey(t *testing.T) {
 		t.Error("escape should skip table update")
 	}
 
-	if ui.viewState != UIViewMain {
-		t.Error("view state should return to main on escape")
+	if ui.modalState.IsActive {
+		t.Error("modal should be closed on escape")
+	}
+}
+
+// TestScanUI_ModalDimensions tests modal sizing calculations
+func TestScanUI_ModalDimensions(t *testing.T) {
+	results := make(chan core.Event, 10)
+	close(results)
+
+	cfg := &config.Config{}
+	ui := NewScanUI(cfg, 100, results, false)
+
+	// Test different screen sizes
+	testSizes := []struct {
+		width  int
+		height int
+	}{
+		{80, 24},   // Small terminal
+		{120, 40},  // Medium terminal  
+		{200, 60},  // Large terminal
+	}
+
+	for _, size := range testSizes {
+		t.Run(fmt.Sprintf("terminal %dx%d", size.width, size.height), func(t *testing.T) {
+			ui.width = size.width
+			ui.height = size.height
+			ui.modalState.IsActive = true
+			ui.modalState.Type = ModalSort
+
+			// This should trigger modal dimension calculation
+			view := ui.View()
+
+			// View should not be empty
+			if view == "" {
+				t.Error("modal view should not be empty")
+			}
+
+			// Verify modal dimensions are reasonable
+			modalWidth := ui.modalState.Position.Width
+			modalHeight := ui.modalState.Position.Height
+
+			// Should use 60% width, 40% height
+			expectedWidth := max(ModalMinWidth, int(float64(size.width)*ModalWidthPercent))
+			expectedHeight := max(ModalMinHeight, int(float64(size.height)*ModalHeightPercent))
+
+			if modalWidth != expectedWidth {
+				t.Errorf("modal width = %d; want %d", modalWidth, expectedWidth)
+			}
+
+			if modalHeight != expectedHeight {
+				t.Errorf("modal height = %d; want %d", modalHeight, expectedHeight)
+			}
+
+			// Should be centered
+			expectedX := (size.width - modalWidth) / 2
+			expectedY := (size.height - modalHeight) / 2
+
+			if ui.modalState.Position.X != expectedX {
+				t.Errorf("modal X position = %d; want %d", ui.modalState.Position.X, expectedX)
+			}
+
+			if ui.modalState.Position.Y != expectedY {
+				t.Errorf("modal Y position = %d; want %d", ui.modalState.Position.Y, expectedY)
+			}
+		})
 	}
 }
 
@@ -575,4 +710,84 @@ func TestScanUI_UpdateTableModel(t *testing.T) {
 
 	// Command may or may not be nil, but it shouldn't crash
 	_ = cmd
+}
+
+// TestScanUI_HandleDetailsModalKey tests details modal scrolling
+func TestScanUI_HandleDetailsModalKey(t *testing.T) {
+	results := make(chan core.Event, 10)
+	close(results)
+
+	cfg := &config.Config{}
+	ui := NewScanUI(cfg, 100, results, false)
+
+	// Set up modal state for details
+	ui.modalState.IsActive = true
+	ui.modalState.Type = ModalDetails
+	ui.modalState.ScrollPosition = 0
+	ui.modalState.MaxScrollHeight = 100
+
+	t.Run("scroll down", func(t *testing.T) {
+		ui.modalState.ScrollPosition = 0
+		msg := tea.KeyMsg{Type: tea.KeyDown}
+		handled, skip, _ := ui.handleKeyMsg(msg)
+
+		if !handled {
+			t.Error("down key should be handled")
+		}
+
+		if !skip {
+			t.Error("down key should skip table update")
+		}
+
+		if ui.modalState.ScrollPosition != 1 {
+			t.Errorf("scroll position = %d; want 1", ui.modalState.ScrollPosition)
+		}
+	})
+
+	t.Run("scroll up", func(t *testing.T) {
+		ui.modalState.ScrollPosition = 5
+		msg := tea.KeyMsg{Type: tea.KeyUp}
+		handled, skip, _ := ui.handleKeyMsg(msg)
+
+		if !handled {
+			t.Error("up key should be handled")
+		}
+
+		if !skip {
+			t.Error("up key should skip table update")
+		}
+
+		if ui.modalState.ScrollPosition != 4 {
+			t.Errorf("scroll position = %d; want 4", ui.modalState.ScrollPosition)
+		}
+	})
+
+	t.Run("scroll up at top", func(t *testing.T) {
+		ui.modalState.ScrollPosition = 0
+		msg := tea.KeyMsg{Type: tea.KeyUp}
+		ui.handleKeyMsg(msg)
+
+		if ui.modalState.ScrollPosition != 0 {
+			t.Error("should not scroll above 0")
+		}
+	})
+
+	t.Run("escape closes modal", func(t *testing.T) {
+		ui.modalState.IsActive = true
+		ui.modalState.Type = ModalDetails
+		msg := tea.KeyMsg{Type: tea.KeyEsc}
+		handled, skip, _ := ui.handleKeyMsg(msg)
+
+		if !handled {
+			t.Error("escape should be handled")
+		}
+
+		if !skip {
+			t.Error("escape should skip table update")
+		}
+
+		if ui.modalState.IsActive {
+			t.Error("modal should be closed on escape")
+		}
+	})
 }

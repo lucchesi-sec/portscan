@@ -73,19 +73,20 @@ func TestScanUI_RenderHelp(t *testing.T) {
 	}
 }
 
-// TestScanUI_RenderSortMenu tests sort menu rendering
-func TestScanUI_RenderSortMenu(t *testing.T) {
+// TestScanUI_RenderSortModal tests sort modal rendering
+func TestScanUI_RenderSortModal(t *testing.T) {
 	results := make(chan core.Event, 10)
 	close(results)
 
 	cfg := &config.Config{}
 	ui := NewScanUI(cfg, 100, results, false)
-	ui.viewState = UIViewSortMenu
+	ui.modalState.IsActive = true
+	ui.modalState.Type = ModalSort
 
-	menu := ui.renderSortMenu()
+	modal := ui.renderSortModal()
 
-	if menu == "" {
-		t.Error("renderSortMenu should not return empty string")
+	if modal == "" {
+		t.Error("renderSortModal should not return empty string")
 	}
 
 	// Check for sort options
@@ -100,25 +101,26 @@ func TestScanUI_RenderSortMenu(t *testing.T) {
 	}
 
 	for _, option := range expectedOptions {
-		if !strings.Contains(menu, option) {
-			t.Errorf("sort menu should contain %q", option)
+		if !strings.Contains(modal, option) {
+			t.Errorf("sort modal should contain %q", option)
 		}
 	}
 }
 
-// TestScanUI_RenderFilterMenu tests filter menu rendering
-func TestScanUI_RenderFilterMenu(t *testing.T) {
+// TestScanUI_RenderFilterModal tests filter modal rendering
+func TestScanUI_RenderFilterModal(t *testing.T) {
 	results := make(chan core.Event, 10)
 	close(results)
 
 	cfg := &config.Config{}
 	ui := NewScanUI(cfg, 100, results, false)
-	ui.viewState = UIViewFilterMenu
+	ui.modalState.IsActive = true
+	ui.modalState.Type = ModalFilter
 
-	menu := ui.renderFilterMenu()
+	modal := ui.renderFilterModal()
 
-	if menu == "" {
-		t.Error("renderFilterMenu should not return empty string")
+	if modal == "" {
+		t.Error("renderFilterModal should not return empty string")
 	}
 
 	// Check for filter options
@@ -131,8 +133,8 @@ func TestScanUI_RenderFilterMenu(t *testing.T) {
 	}
 
 	for _, option := range expectedOptions {
-		if !strings.Contains(menu, option) {
-			t.Errorf("filter menu should contain %q", option)
+		if !strings.Contains(modal, option) {
+			t.Errorf("filter modal should contain %q", option)
 		}
 	}
 }
@@ -479,17 +481,25 @@ func TestScanUI_ViewStateTransitions(t *testing.T) {
 			},
 		},
 		{
-			name:      "sort menu",
-			viewState: UIViewSortMenu,
+			name:      "sort modal",
+			viewState: UIViewMain,
 			checkFunc: func(v string) bool {
-				return strings.Contains(v, "SORT OPTIONS")
+				// Activate modal and check for overlay
+				ui.modalState.IsActive = true
+				ui.modalState.Type = ModalSort
+				modalView := ui.View()
+				return strings.Contains(modalView, "SORT OPTIONS")
 			},
 		},
 		{
-			name:      "filter menu",
-			viewState: UIViewFilterMenu,
+			name:      "filter modal",
+			viewState: UIViewMain,
 			checkFunc: func(v string) bool {
-				return strings.Contains(v, "FILTER OPTIONS")
+				// Activate modal and check for overlay
+				ui.modalState.IsActive = true
+				ui.modalState.Type = ModalFilter
+				modalView := ui.View()
+				return strings.Contains(modalView, "FILTER OPTIONS")
 			},
 		},
 	}

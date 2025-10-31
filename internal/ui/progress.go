@@ -2,7 +2,17 @@ package ui
 
 import (
 	"fmt"
+	"math"
 	"time"
+)
+
+// PerformanceTrend indicates the current performance trend
+type PerformanceTrend int
+
+const (
+	TrendStable PerformanceTrend = iota
+	TrendImproving
+	TrendDegrading
 )
 
 // ProgressTracker tracks scan progress and calculates ETA
@@ -19,6 +29,12 @@ type ProgressTracker struct {
 	IsPaused       bool
 	PausedDuration time.Duration
 	pauseStart     time.Time
+	
+	// Enhanced metrics for breadcrumb
+	TotalHosts       int
+	ScannedHosts     int
+	PreviousRate     float64
+	PerformanceTrend PerformanceTrend
 }
 
 // NewProgressTracker creates a new progress tracker
@@ -37,13 +53,43 @@ func (p *ProgressTracker) Update(scanned, open, closed, filtered int, currentRat
 	p.OpenPorts = open
 	p.ClosedPorts = closed
 	p.FilteredPorts = filtered
+	p.PreviousRate = p.CurrentRate
 	p.CurrentRate = currentRate
 	p.LastUpdate = time.Now()
+
+	// Calculate performance trend
+	p.calculatePerformanceTrend()
 
 	// Calculate average rate
 	elapsed := p.GetActiveTime()
 	if elapsed.Seconds() > 0 && p.ScannedPorts > 0 {
 		p.AverageRate = float64(p.ScannedPorts) / elapsed.Seconds()
+	}
+}
+
+// UpdateHosts updates the host tracking metrics
+func (p *ProgressTracker) UpdateHosts(totalHosts, scannedHosts int) {
+	p.TotalHosts = totalHosts
+	p.ScannedHosts = scannedHosts
+}
+
+// calculatePerformanceTrend calculates the current performance trend
+func (p *ProgressTracker) calculatePerformanceTrend() {
+	// Calculate relative change
+	if p.PreviousRate > 0 && p.CurrentRate > 0 {
+		change := (p.CurrentRate - p.PreviousRate) / p.PreviousRate
+		// Consider significant change if > 5%
+		if math.Abs(change) > 0.05 {
+			if change > 0 {
+				p.PerformanceTrend = TrendImproving
+			} else {
+				p.PerformanceTrend = TrendDegrading
+			}
+		} else {
+			p.PerformanceTrend = TrendStable
+		}
+	} else {
+		p.PerformanceTrend = TrendStable
 	}
 }
 
@@ -144,4 +190,46 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%02d:%02d:%02d", h, m, s)
 	}
 	return fmt.Sprintf("%02d:%02d", m, s)
+}
+
+// GetElapsedDuration returns formatted elapsed time
+func (p *ProgressTracker) GetElapsedDuration() string {
+	return formatDuration(p.GetActiveTime())
+}
+
+// GetPerformanceIndicator returns the performance trend indicator
+func (p *ProgressTracker) GetPerformanceIndicator() string {
+	switch p.PerformanceTrend {
+	case TrendImproving:
+		return "↑"
+	case TrendDegrading:
+		return "↓"
+	default:
+		return "→"
+	}
+}
+
+// GetFormattedRate returns current rate with formatting
+func (p *ProgressTracker) GetFormattedRate() string {
+	if p.CurrentRate >= 1000 {
+		return fmt.Sprintf("%.0fK", p.CurrentRate/1000)
+	}
+	return fmt.Sprintf("%.0f", p.CurrentRate)
+}
+
+// GetHostProgress returns host scanning progress string
+func (p *ProgressTracker) GetHostProgress() string {
+	if p.TotalHosts > 0 {
+		return fmt.Sprintf("%d/%d", p.ScannedHosts, p.TotalHosts)
+	}
+	return fmt.Sprintf("%d", p.ScannedHosts)
+}
+
+// GetDetailedETA returns formatted ETA with "remaining" suffix
+func (p *ProgressTracker) GetDetailedETA() string {
+	eta := p.GetETA()
+	if eta <= 0 {
+		return "complete"
+	}
+	return formatDuration(eta) + " remaining"
 }

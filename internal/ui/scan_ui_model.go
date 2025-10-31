@@ -20,9 +20,36 @@ const (
 	UIViewMain UIViewState = iota
 	UIViewHelp
 	UIViewDetails
-	UIViewSortMenu
-	UIViewFilterMenu
+	UIViewSortModal
+	UIViewFilterModal
 )
+
+// ModalType represents different modal dialog types
+type ModalType int
+
+const (
+	ModalSort ModalType = iota
+	ModalFilter
+	ModalDetails
+)
+
+// Position represents screen coordinates and dimensions
+type Position struct {
+	X      int
+	Y      int
+	Width  int
+	Height int
+}
+
+// ModalState represents the state of modal dialogs
+type ModalState struct {
+	IsActive        bool
+	Type            ModalType
+	Position        Position
+	Cursor          int
+	ScrollPosition  int // For details modal scrolling
+	MaxScrollHeight int  // Track content height for scrolling
+}
 
 // Message types for communication with the UI
 type scanResultMsg struct {
@@ -134,6 +161,7 @@ type ScanUI struct {
 
 	// View state
 	viewState UIViewState
+	modalState ModalState
 	width     int
 	height    int
 
@@ -155,8 +183,9 @@ type ScanUI struct {
 	showOnlyOpen bool
 
 	// Stats
-	stats       *ResultStats
-	currentRate float64
+	stats             *ResultStats
+	currentRate       float64
+	previousOpenCount int
 
 	// Sorting and Filtering
 	sortState      *SortState
@@ -166,6 +195,7 @@ type ScanUI struct {
 	// Dashboard
 	showDashboard bool
 	statsData     *StatsData
+	sparklineData *SparklineData
 }
 
 // KeyBindings defines all keyboard shortcuts
@@ -186,6 +216,8 @@ type KeyBindings struct {
 	OpenOnly        key.Binding
 	Search          key.Binding
 	ToggleDashboard key.Binding
+	Enter           key.Binding
+	Escape          key.Binding
 }
 
 var defaultKeys = KeyBindings{
@@ -253,6 +285,14 @@ var defaultKeys = KeyBindings{
 		key.WithKeys("D"),
 		key.WithHelp("D", "toggle dashboard"),
 	),
+	Enter: key.NewBinding(
+		key.WithKeys("enter"),
+		key.WithHelp("Enter", "confirm selection"),
+	),
+	Escape: key.NewBinding(
+		key.WithKeys("esc"),
+		key.WithHelp("ESC", "cancel/close"),
+	),
 }
 
 // ShortHelp returns key bindings for the help bar
@@ -319,6 +359,7 @@ func NewScanUI(cfg *config.Config, totalPorts int, results <-chan core.Event, on
 
 	sortState := NewSortState()
 	filterState := NewFilterState()
+	sparklineData := NewSparklineData()
 	if onlyOpen {
 		filterState.SetStateFilter(StateFilterOpen)
 	}
@@ -343,6 +384,7 @@ func NewScanUI(cfg *config.Config, totalPorts int, results <-chan core.Event, on
 		filterState:    filterState,
 		stats:          stats,
 		displayResults: []core.ResultEvent{},
+		sparklineData:  sparklineData,
 	}
 }
 

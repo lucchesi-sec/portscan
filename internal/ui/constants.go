@@ -64,3 +64,21 @@ const (
 	// StatusBarLabelWidth is the width of status bar labels
 	StatusBarLabelWidth = 10
 )
+
+// Modal dialog dimensions and positioning
+const (
+	// ModalWidthPercent is the modal width as a percentage of screen width
+	ModalWidthPercent = 0.6
+
+	// ModalHeightPercent is the modal height as a percentage of screen height
+	ModalHeightPercent = 0.4
+
+	// ModalBorderPadding is the padding inside modal borders
+	ModalBorderPadding = 2
+
+	// ModalMinWidth is the minimum modal width in characters
+	ModalMinWidth = 40
+
+	// ModalMinHeight is the minimum modal height in characters
+	ModalMinHeight = 10
+)
