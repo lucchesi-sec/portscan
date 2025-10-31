@@ -9,9 +9,9 @@ import (
 
 // Config holds the scanner configuration with validation rules.
 type Config struct {
-	Rate           int      `mapstructure:"rate" validate:"min=1,max=100000"`
+	Rate           int      `mapstructure:"rate" validate:"min=1,max=15000"`
 	Ports          string   `mapstructure:"ports"`
-	TimeoutMs      int      `mapstructure:"timeout_ms" validate:"min=1,max=10000"`
+	TimeoutMs      int      `mapstructure:"timeout_ms" validate:"min=1,max=60000"`
 	Workers        int      `mapstructure:"workers" validate:"min=0,max=1000"` // 0 means auto-detect
 	Output         string   `mapstructure:"output" validate:"omitempty,oneof=json csv prometheus table"`
 	Banners        bool     `mapstructure:"banners"`

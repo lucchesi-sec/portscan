@@ -295,7 +295,7 @@ func TestRateLimitError(t *testing.T) {
 		{
 			name:      "rate too high",
 			requested: 100000,
-			max:       50000,
+			max:       15000,
 		},
 		{
 			name:      "slightly over limit",

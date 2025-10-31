@@ -4,10 +4,10 @@
 // supporting multiple configuration sources with the following precedence
 // (highest to lowest):
 //
-//   1. Command-line flags (highest priority)
-//   2. Environment variables (PORTSCAN_*)
-//   3. Configuration file (~/.portscan.yaml)
-//   4. Default values (lowest priority)
+//  1. Command-line flags (highest priority)
+//  2. Environment variables (PORTSCAN_*)
+//  3. Configuration file (~/.portscan.yaml)
+//  4. Default values (lowest priority)
 //
 // Example configuration file (~/.portscan.yaml):
 //
@@ -35,7 +35,7 @@
 // All configuration values are validated using struct tags with
 // go-playground/validator. Invalid values return descriptive errors:
 //
-//   - rate: 1-100,000 packets per second
+//   - rate: 1-15,000 packets per second
 //   - timeout_ms: 1-10,000 milliseconds
 //   - workers: 0-1,000 (0 means auto-detect)
 //   - output: json, csv, prometheus, table

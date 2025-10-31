@@ -135,7 +135,7 @@ func TestConfigValidation(t *testing.T) {
 			name: "invalid timeout too high",
 			config: Config{
 				Rate:      7500,
-				TimeoutMs: 15000,
+				TimeoutMs: 70000,
 				Workers:   100,
 				Protocol:  "tcp",
 			},

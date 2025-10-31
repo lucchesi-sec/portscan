@@ -23,14 +23,24 @@ func initUDPProbes() map[uint16][]byte {
 }
 
 func (s *UDPScanner) AddCustomProbe(port uint16, probe []byte) {
+	s.probeMu.Lock()
+	defer s.probeMu.Unlock()
 	s.customProbes[port] = probe
 }
 
 func (s *UDPScanner) GetProbeStats() map[uint16]ProbeStats {
-	return s.probeStats
+	s.probeMu.RLock()
+	defer s.probeMu.RUnlock()
+	snapshot := make(map[uint16]ProbeStats, len(s.probeStats))
+	for port, stats := range s.probeStats {
+		snapshot[port] = stats
+	}
+	return snapshot
 }
 
 func (s *UDPScanner) recordProbeAttempt(port uint16, success bool) {
+	s.probeMu.Lock()
+	defer s.probeMu.Unlock()
 	stats := s.probeStats[port]
 	stats.Sent++
 	if success {
@@ -41,6 +51,8 @@ func (s *UDPScanner) recordProbeAttempt(port uint16, success bool) {
 }
 
 func (s *UDPScanner) getProbeForPort(port uint16) []byte {
+	s.probeMu.RLock()
+	defer s.probeMu.RUnlock()
 	if probe, exists := s.customProbes[port]; exists {
 		return probe
 	}

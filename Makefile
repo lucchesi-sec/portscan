@@ -1,7 +1,7 @@
 # Go TUI Port Scanner - Makefile
 # High-performance terminal-based port scanner
 
-.PHONY: help build test lint clean install dev dev-setup benchmark test-coverage fuzz security release docker
+.PHONY: help build test lint clean install dev dev-setup benchmark test-coverage fuzz security release docker generate-docs
 
 # Default target
 .DEFAULT_GOAL := help
@@ -107,6 +107,12 @@ security:
 	@echo "→ Running static security analysis..."
 	@gosec ./... || true
 	@echo "✅ Security checks completed"
+
+## generate-docs: Generate code documentation
+generate-docs:
+	@echo "Generating documentation..."
+	@$(GOCMD) run scripts/generate-docs.go -src . -out docs/generated
+	@echo "✅ Documentation generated in docs/generated"
 
 ## vulncheck: Check for known vulnerabilities using govulncheck
 vulncheck:

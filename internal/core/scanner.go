@@ -72,6 +72,20 @@ func NewScanner(cfg *Config) *Scanner {
 	}
 }
 
+func (s *Scanner) jobBufferSize(total int) int {
+	if total <= 0 {
+		return 0
+	}
+	buffer := total
+	if maxBuffer := s.config.Workers * 4; maxBuffer > 0 && buffer > maxBuffer {
+		buffer = maxBuffer
+	}
+	if buffer < 1 {
+		buffer = 1
+	}
+	return buffer
+}
+
 func (s *Scanner) Results() <-chan Event { return s.results }
 
 func (s *Scanner) ScanRange(ctx context.Context, host string, ports []uint16) {
@@ -81,13 +95,16 @@ func (s *Scanner) ScanRange(ctx context.Context, host string, ports []uint16) {
 func (s *Scanner) ScanTargets(ctx context.Context, targets []ScanTarget) {
 	totalPorts := totalPortCount(targets)
 	if totalPorts == 0 {
+		if s.rateTicker != nil {
+			s.rateTicker.Stop()
+		}
 		close(s.results)
 		return
 	}
 
 	s.progressReporter.SetCompleted(0)
 
-	jobs := make(chan scanJob, totalPorts)
+	jobs := make(chan scanJob, s.jobBufferSize(totalPorts))
 	progressDone := s.progressReporter.StartReporting(ctx, totalPorts)
 
 	s.startWorkers(ctx, jobs)

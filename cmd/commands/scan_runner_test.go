@@ -401,7 +401,8 @@ func TestMonitorInterrupts(t *testing.T) {
 	defer cancel()
 
 	// This should not panic
-	monitorInterrupts(cancel)
+	cleanup := monitorInterrupts(cancel)
+	defer cleanup()
 
 	// Give it a moment to set up
 	// The function should create a goroutine that waits for signals
@@ -450,7 +451,10 @@ func TestStreamEvents(t *testing.T) {
 	}
 
 	// Call streamEvents
-	err := streamEvents(events, mockExport, mockClose)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := streamEvents(ctx, events, mockExport, mockClose)
 
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)

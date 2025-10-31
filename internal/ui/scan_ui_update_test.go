@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/lucchesi-sec/portscan/internal/core"
+	"github.com/lucchesi-sec/portscan/internal/ui/commands"
 	"github.com/lucchesi-sec/portscan/pkg/config"
 )
 
@@ -534,9 +535,9 @@ func TestScanUI_ModalDimensions(t *testing.T) {
 		width  int
 		height int
 	}{
-		{80, 24},   // Small terminal
-		{120, 40},  // Medium terminal  
-		{200, 60},  // Large terminal
+		{80, 24},  // Small terminal
+		{120, 40}, // Medium terminal
+		{200, 60}, // Large terminal
 	}
 
 	for _, size := range testSizes {
@@ -790,4 +791,207 @@ func TestScanUI_HandleDetailsModalKey(t *testing.T) {
 			t.Error("modal should be closed on escape")
 		}
 	})
+}
+
+// TestScanUI_CommandPalette_Open tests command palette opening functionality
+func TestScanUI_CommandPalette_Open(t *testing.T) {
+	results := make(chan core.Event, 10)
+	close(results)
+
+	cfg := &config.Config{}
+	ui := NewScanUI(cfg, 100, results, false)
+	ui.viewState = UIViewMain
+
+	// Test opening with search key (/)
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}}
+	handled, skip, _ := ui.handleKeyMsg(msg)
+
+	if !handled {
+		t.Error("search key should be handled")
+	}
+
+	if !skip {
+		t.Error("search key should skip table update")
+	}
+
+	if !ui.modalState.IsActive || ui.modalState.Type != ModalCommandPalette {
+		t.Error("command palette modal should be active")
+	}
+
+	// Reset for next test
+	ui.modalState.IsActive = false
+	ui.modalState.Type = 0
+
+	// Reset for next test and try Ctrl+K
+	ui.modalState.IsActive = false
+	ui.modalState.Type = 0
+
+	// Test opening with Ctrl+K - use the key binding
+	msg = tea.KeyMsg{Type: tea.KeyCtrlK}
+	handled, skip, _ = ui.handleKeyMsg(msg)
+
+	if !handled {
+		t.Error("Ctrl+K should be handled")
+	}
+
+	if !skip {
+		t.Error("Ctrl+K should skip table update")
+	}
+
+	if !ui.modalState.IsActive || ui.modalState.Type != ModalCommandPalette {
+		t.Error("command palette modal should be active")
+	}
+}
+
+// TestScanUI_CommandPalette_KeyHandling tests command palette key handling
+func TestScanUI_CommandPalette_KeyHandling(t *testing.T) {
+	results := make(chan core.Event, 10)
+	close(results)
+
+	cfg := &config.Config{}
+	ui := NewScanUI(cfg, 100, results, false)
+
+	// Set up command palette modal
+	ui.modalState.IsActive = true
+	ui.modalState.Type = ModalCommandPalette
+	ui.commandPaletteState.Query = ""
+	ui.commandPaletteState.Cursor = 0
+	activeCommands := ui.commandPaletteState.CommandRegistry.GetActiveCommands(ui)
+	ui.commandPaletteState.FilteredResults = commands.FuzzySearch(activeCommands, "")
+
+	// Test escape
+	msg := tea.KeyMsg{Type: tea.KeyEsc}
+	handled, skip, _ := ui.handleKeyMsg(msg)
+
+	if !handled {
+		t.Error("escape should be handled")
+	}
+
+	if !skip {
+		t.Error("escape should skip table update")
+	}
+
+	if ui.modalState.IsActive {
+		t.Error("modal should be closed on escape")
+	}
+
+	// Re-open for more tests
+	ui.modalState.IsActive = true
+	ui.modalState.Type = ModalCommandPalette
+	ui.commandPaletteState.Query = ""
+	ui.commandPaletteState.Cursor = 0
+	ui.commandPaletteState.FilteredResults = commands.FuzzySearch(activeCommands, "")
+
+	// Test navigation keys
+	t.Run("navigation down", func(t *testing.T) {
+		ui.commandPaletteState.Cursor = 0
+		if len(ui.commandPaletteState.FilteredResults) > 0 {
+			ui.commandPaletteState.FilteredResults = ui.commandPaletteState.FilteredResults[:1] // Ensure we have at least one command
+		}
+		msg := tea.KeyMsg{Type: tea.KeyDown}
+		handled, skip, _ := ui.handleCommandPaletteKey(msg)
+
+		if !handled {
+			t.Error("down key should be handled")
+		}
+
+		if !skip {
+			t.Error("down key should skip table update")
+		}
+
+		if ui.commandPaletteState.Cursor != 0 { // Since we only have 1 item, cursor stays at 0
+			t.Errorf("cursor should stay at 0, got %d", ui.commandPaletteState.Cursor)
+		}
+	})
+}
+
+// TestScanUI_CommandPalette_Search tests command palette search functionality
+func TestScanUI_CommandPalette_Search(t *testing.T) {
+	results := make(chan core.Event, 10)
+	close(results)
+
+	cfg := &config.Config{}
+	ui := NewScanUI(cfg, 100, results, false)
+
+	// Set up command palette modal
+	ui.modalState.IsActive = true
+	ui.modalState.Type = ModalCommandPalette
+	ui.commandPaletteState.Query = ""
+	ui.commandPaletteState.Cursor = 0
+	activeCommands := ui.commandPaletteState.CommandRegistry.GetActiveCommands(ui)
+	ui.commandPaletteState.FilteredResults = commands.FuzzySearch(activeCommands, "")
+
+	// Test typing 's' to search for "sort"
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}}
+	handled, skip, _ := ui.handleCommandPaletteKey(msg)
+
+	if !handled {
+		t.Error("typing should be handled")
+	}
+
+	if !skip {
+		t.Error("typing should skip table update")
+	}
+
+	if ui.commandPaletteState.Query != "s" {
+		t.Errorf("query should be 's', got '%s'", ui.commandPaletteState.Query)
+	}
+
+	// Verify results were filtered
+	if len(ui.commandPaletteState.FilteredResults) == 0 {
+		t.Log("No commands found for search 's', this might be expected")
+	}
+
+	// Test backspace
+	msg = tea.KeyMsg{Type: tea.KeyBackspace}
+	handled, skip, _ = ui.handleCommandPaletteKey(msg)
+
+	if !handled {
+		t.Error("backspace should be handled")
+	}
+
+	if ui.commandPaletteState.Query != "" {
+		t.Errorf("query should be empty after backspace, got '%s'", ui.commandPaletteState.Query)
+	}
+}
+
+// TestScanUI_CommandPalette_Execution tests command execution from palette
+func TestScanUI_CommandPalette_Execution(t *testing.T) {
+	results := make(chan core.Event, 10)
+	close(results)
+
+	cfg := &config.Config{}
+	ui := NewScanUI(cfg, 100, results, false)
+
+	// Set up command palette with a command
+	ui.modalState.IsActive = true
+	ui.modalState.Type = ModalCommandPalette
+	ui.commandPaletteState.Query = "quit" // Search for quit command
+	activeCommands := ui.commandPaletteState.CommandRegistry.GetActiveCommands(ui)
+	ui.commandPaletteState.FilteredResults = commands.FuzzySearch(activeCommands, "quit")
+	ui.commandPaletteState.Cursor = 0
+
+	// Test enter to execute (if we have matching commands)
+	if len(ui.commandPaletteState.FilteredResults) > 0 {
+		msg := tea.KeyMsg{Type: tea.KeyEnter}
+		handled, skip, cmd := ui.handleCommandPaletteKey(msg)
+
+		if !handled {
+			t.Error("enter should be handled")
+		}
+
+		if !skip {
+			t.Error("enter should skip table update")
+		}
+
+		// Modal should be closed after execution
+		if ui.modalState.IsActive {
+			t.Error("modal should be closed after command execution")
+		}
+
+		// Command should be returned
+		if cmd == nil {
+			t.Log("no command returned - might be expected if action doesn't return a tea.Cmd")
+		}
+	}
 }

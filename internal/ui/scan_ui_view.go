@@ -82,16 +82,16 @@ func (m *ScanUI) renderBreadcrumb() string {
 		duration := m.progressTrack.GetElapsedDuration()
 		indicator := m.progressTrack.GetPerformanceIndicator()
 		rate := m.progressTrack.GetFormattedRate() + " ports/sec"
-		
+
 		// Color code performance indicator
 		indicatorStyle := m.getPerformanceIndicatorStyle()
 		coloredIndicator := indicatorStyle.Render(indicator + " " + rate)
-		
+
 		// Add host count, percentage completion, and ETA
 		hosts := m.progressTrack.GetHostProgress()
 		percent := fmt.Sprintf("%.1f%%", m.progressTrack.GetProgress())
 		eta := m.progressTrack.GetDetailedETA()
-		
+
 		// Build metrics string with color-coded status
 		metrics := fmt.Sprintf(" • Running: %s • %s • Hosts: %s • Progress: %s complete • ETA: %s • %s",
 			coloredIndicator,
@@ -100,16 +100,16 @@ func (m *ScanUI) renderBreadcrumb() string {
 			percent,
 			eta,
 			m.getStatusMessage())
-			
+
 		return style.Render(location + metrics)
 	} else {
 		// Completed scan metrics
 		total, open, closed, filtered := m.stats.Totals()
 		duration := m.progressTrack.GetElapsedDuration()
-		
+
 		metrics := fmt.Sprintf(" • %d total • %d open • %d closed • %d filtered • Duration: %s • Complete ✓",
 			total, open, closed, filtered, duration)
-			
+
 		return style.Render(location + metrics)
 	}
 }
@@ -118,7 +118,7 @@ func (m *ScanUI) renderBreadcrumb() string {
 func (m *ScanUI) getPerformanceIndicatorStyle() lipgloss.Style {
 	trend := m.progressTrack.PerformanceTrend
 	style := lipgloss.NewStyle()
-	
+
 	switch trend {
 	case TrendImproving:
 		// Green for improving
@@ -136,10 +136,10 @@ func (m *ScanUI) getPerformanceIndicatorStyle() lipgloss.Style {
 func (m *ScanUI) getStatusMessage() string {
 	trend := m.progressTrack.PerformanceTrend
 	rate := m.progressTrack.CurrentRate
-	
+
 	var message string
 	var color lipgloss.Color
-	
+
 	switch trend {
 	case TrendImproving:
 		message = "Performance improving"
@@ -159,7 +159,7 @@ func (m *ScanUI) getStatusMessage() string {
 			color = m.theme.Warning
 		}
 	}
-	
+
 	style := lipgloss.NewStyle().Foreground(color)
 	return style.Render(message)
 }
@@ -184,11 +184,11 @@ func (m *ScanUI) renderHeader() string {
 func (m *ScanUI) renderProgress() string {
 	progress := m.progressTrack.GetProgress() / 100.0
 	progressBar := m.progressBar.ViewAs(progress)
-	
+
 	// Add rate display
 	rateStyle := lipgloss.NewStyle().Foreground(m.theme.Secondary)
 	rateText := rateStyle.Render(fmt.Sprintf("  %0.1f pps • ETA: %s", m.currentRate, formatDuration(m.progressTrack.GetETA())))
-	
+
 	return progressBar + rateText
 }
 
@@ -244,8 +244,6 @@ func (m *ScanUI) renderSortFilterIndicators() string {
 	return ""
 }
 
-
-
 func (m *ScanUI) renderHelp() string {
 	helpStyle := lipgloss.NewStyle().
 		Padding(2).
@@ -260,7 +258,10 @@ Navigation:
   ↓/j        Move down
   PgUp/PgDn  Page up/down
   g/G        Jump to top/bottom
-  /          Search banners
+
+Command Palette:
+  Ctrl+K     Open command palette
+  /          Open command palette for search
 
 Filtering & Sorting:
   s          Sort options (modal)
@@ -310,6 +311,8 @@ func (m *ScanUI) renderModalOverlay() string {
 		modalContent = m.renderFilterModal()
 	case ModalDetails:
 		modalContent = m.renderDetailsModal()
+	case ModalCommandPalette:
+		modalContent = m.renderCommandPaletteModal()
 	default:
 		modalContent = ""
 	}
@@ -322,12 +325,12 @@ func (m *ScanUI) renderModalOverlay() string {
 
 	// Simple overlay approach - center the modal
 	lines := strings.Split(dimmedBackground, "\n")
-	
+
 	// Add vertical offset
 	for i := 0; i < modalY && i < len(lines); i++ {
 		lines[i] = lipgloss.NewStyle().Width(m.width).Render(lines[i])
 	}
-	
+
 	// Insert the modal
 	if modalY < len(lines) {
 		modalLine := lipgloss.NewStyle().
@@ -336,7 +339,7 @@ func (m *ScanUI) renderModalOverlay() string {
 			Render(styledModal)
 		lines[modalY] = modalLine
 	}
-	
+
 	return strings.Join(lines, "\n")
 }
 
@@ -355,7 +358,7 @@ func (m *ScanUI) renderSortModal() string {
 	// Options
 	options := []string{
 		"1. Port (ascending)",
-		"2. Port (descending)", 
+		"2. Port (descending)",
 		"3. Host (A → Z)",
 		"4. State (Open → Closed → Filtered)",
 		"5. Service (alphabetical)",
@@ -403,7 +406,7 @@ func (m *ScanUI) renderFilterModal() string {
 	// Options
 	options := []string{
 		"1. Show All States",
-		"2. Show Open Ports Only", 
+		"2. Show Open Ports Only",
 		"3. Show Closed Ports Only",
 		"4. Show Filtered Ports Only",
 	}
@@ -451,10 +454,10 @@ func (m *ScanUI) renderDetailsModal() string {
 	}
 
 	selectedResult := m.displayResults[m.table.Cursor()]
-	
+
 	// Calculate available content area for scrolling
 	availableHeight := maxModalContentHeight - 10 // Account for title/borders
-	
+
 	// Build full content
 	var fullContent strings.Builder
 
@@ -473,7 +476,7 @@ func (m *ScanUI) renderDetailsModal() string {
 	fullContent.WriteString(section + "\n")
 	service := getServiceName(selectedResult.Port)
 	hostInfo := fmt.Sprintf("  Host: %s\n  Port: %d/%s\n  State: %s\n  Service: %s",
-		selectedResult.Host, selectedResult.Port, selectedResult.Protocol, 
+		selectedResult.Host, selectedResult.Port, selectedResult.Protocol,
 		selectedResult.State, service)
 	fullContent.WriteString(hostInfo + "\n\n")
 
@@ -484,7 +487,7 @@ func (m *ScanUI) renderDetailsModal() string {
 			Foreground(m.theme.Secondary).
 			Render("🏷️  Service Banner")
 		fullContent.WriteString(section + "\n")
-		
+
 		// Keep original formatting for banner (don't truncate)
 		bannerLines := strings.Split(selectedResult.Banner, "\n")
 		for _, line := range bannerLines {
@@ -511,13 +514,13 @@ func (m *ScanUI) renderDetailsModal() string {
 		Foreground(m.theme.Secondary).
 		Render("🔍 Network Analysis")
 	fullContent.WriteString(section + "\n")
-	
+
 	// Check if it's a common service port
 	correctService := getServiceName(selectedResult.Port)
 	serviceAnalysis := fmt.Sprintf("  Expected Service: %s", correctService)
 	// Note: We can't check for service mismatch since ResultEvent doesn't contain detected service
 	serviceAnalysis += " (expected)"
-	
+
 	// Categorize port state
 	stateAnalysis := ""
 	switch selectedResult.State {
@@ -528,7 +531,7 @@ func (m *ScanUI) renderDetailsModal() string {
 	case core.StateFiltered:
 		stateAnalysis = "  🚫 Port is Filtered (blocked by firewall)"
 	}
-	
+
 	fullContent.WriteString(serviceAnalysis + "\n" + stateAnalysis + "\n")
 
 	// Instructions
@@ -545,9 +548,9 @@ func (m *ScanUI) renderDetailsModal() string {
 	if availableHeight > 0 && len(contentLines) > availableHeight {
 		// Scrolling needed - show only visible portion
 		start := m.modalState.ScrollPosition
-		end := min(start + availableHeight, len(contentLines))
+		end := min(start+availableHeight, len(contentLines))
 		visibleLines := contentLines[start:end]
-		
+
 		scrollIndicator := ""
 		if start > 0 {
 			scrollIndicator += "▲"
@@ -559,11 +562,11 @@ func (m *ScanUI) renderDetailsModal() string {
 		} else {
 			scrollIndicator += " "
 		}
-		
+
 		scrollStyle := lipgloss.NewStyle().Foreground(m.theme.Muted)
-		scrollBar := scrollStyle.Render(fmt.Sprintf("Lines %d-%d of %d %s", 
+		scrollBar := scrollStyle.Render(fmt.Sprintf("Lines %d-%d of %d %s",
 			start+1, end, len(contentLines), scrollIndicator))
-		
+
 		return strings.Join(visibleLines, "\n") + "\n\n" + scrollBar
 	}
 
@@ -580,6 +583,91 @@ func getMaxModalContentHeight() int {
 const (
 	maxModalContentHeight = 20
 )
+
+// renderCommandPaletteModal renders the command palette modal
+func (m *ScanUI) renderCommandPaletteModal() string {
+	var b strings.Builder
+
+	// Title
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(m.theme.Primary).
+		Width(50).
+		Render("⌨️  COMMAND PALETTE")
+	b.WriteString(title + "\n\n")
+
+	// Search input - show current query
+	inputPrompt := lipgloss.NewStyle().
+		Foreground(m.theme.Secondary).
+		Render("> " + m.commandPaletteState.Query)
+	b.WriteString(inputPrompt + "\n\n")
+
+	// Show filtered results
+	if len(m.commandPaletteState.FilteredResults) == 0 {
+		noResults := lipgloss.NewStyle().
+			Foreground(m.theme.Muted).
+			Render("No matching commands found")
+		b.WriteString(noResults)
+	} else {
+		// Display available commands with highlighting
+		maxDisplay := 10 // Show at most 10 commands
+		for i, result := range m.commandPaletteState.FilteredResults {
+			if i >= maxDisplay {
+				break
+			}
+
+			isSelected := i == m.commandPaletteState.Cursor
+			cmd := result.Command
+
+			// Command name
+			nameStyle := lipgloss.NewStyle()
+			if isSelected {
+				nameStyle = nameStyle.Background(m.theme.Primary).Foreground(m.theme.Background)
+			} else {
+				nameStyle = nameStyle.Foreground(m.theme.Foreground)
+			}
+
+			// Format command with category prefix
+			category := string(cmd.Category)
+			commandLine := fmt.Sprintf("[%s] %s", category, cmd.Name)
+
+			// For highlighting matches in the search results, we'll use a simple approach
+			// since highlighting individual characters requires more complex lipgloss handling
+			b.WriteString(nameStyle.Render(commandLine) + "\n")
+
+			// Description on next line, indented
+			descStyle := lipgloss.NewStyle()
+			if isSelected {
+				descStyle = descStyle.Foreground(m.theme.Background) // Dimmed when selected
+			} else {
+				descStyle = descStyle.Foreground(m.theme.Muted)
+			}
+			b.WriteString(descStyle.Render("    "+cmd.Description) + "\n")
+
+			// Add key bindings if available
+			if len(cmd.Keys) > 0 {
+				keys := strings.Join(cmd.Keys, ", ")
+				keysStyle := lipgloss.NewStyle().Foreground(m.theme.Secondary)
+				b.WriteString(keysStyle.Render("    ("+keys+")") + "\n")
+			}
+
+			b.WriteString("\n") // Add space between commands
+		}
+	}
+
+	// Show total count
+	totalText := fmt.Sprintf("%d commands available", len(m.commandPaletteState.CommandRegistry.GetActiveCommands(m)))
+	totalStyle := lipgloss.NewStyle().Foreground(m.theme.Muted)
+	b.WriteString(totalStyle.Render(totalText) + "\n")
+
+	// Instructions
+	instructions := lipgloss.NewStyle().
+		Foreground(m.theme.Muted).
+		Render("↑/↓: Navigate • Enter: Execute • ESC: Close")
+	b.WriteString("\n" + instructions)
+
+	return b.String()
+}
 
 // renderDashboardView renders the split view dashboard
 func (m *ScanUI) renderDashboardView() string {
@@ -757,10 +845,10 @@ func (m *ScanUI) renderSparklines() string {
 	b.WriteString(sectionStyle.Render("Scan Rate (60s):") + "\n")
 	scanRateSparkline := m.sparklineData.RenderSparkline(m.sparklineData.ScanRate, 20)
 	summary := m.sparklineData.GetMetricSummary()
-	
+
 	sparklineStyle := lipgloss.NewStyle().Foreground(m.theme.Primary)
 	b.WriteString("  " + sparklineStyle.Render(scanRateSparkline) + "\n")
-	b.WriteString(fmt.Sprintf("  Cur: %0.1f • Avg: %0.1f • Peak: %0.1f pps\n", 
+	b.WriteString(fmt.Sprintf("  Cur: %0.1f • Avg: %0.1f • Peak: %0.1f pps\n",
 		summary.CurrentScanRate, summary.AverageScanRate, summary.PeakScanRate))
 	b.WriteString("\n")
 
@@ -769,7 +857,7 @@ func (m *ScanUI) renderSparklines() string {
 		b.WriteString(sectionStyle.Render("Discovery Rate (60s):") + "\n")
 		discoverySparkline := m.sparklineData.RenderSparkline(m.sparklineData.DiscoveryRate, 20)
 		b.WriteString("  " + sparklineStyle.Render(discoverySparkline) + "\n")
-		b.WriteString(fmt.Sprintf("  Cur: %0.1f • Avg: %0.1f pps\n", 
+		b.WriteString(fmt.Sprintf("  Cur: %0.1f • Avg: %0.1f pps\n",
 			summary.CurrentDiscoveryRate, summary.AverageDiscoveryRate))
 	}
 

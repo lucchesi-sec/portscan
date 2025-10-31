@@ -6,13 +6,16 @@ import "context"
 func (s *UDPScanner) ScanTargets(ctx context.Context, targets []ScanTarget) {
 	totalPorts := totalPortCount(targets)
 	if totalPorts == 0 {
+		if s.rateTicker != nil {
+			s.rateTicker.Stop()
+		}
 		close(s.results)
 		return
 	}
 
 	s.progressReporter.SetCompleted(0)
 
-	jobs := make(chan scanJob, totalPorts)
+	jobs := make(chan scanJob, s.jobBufferSize(totalPorts))
 	progressDone := s.progressReporter.StartReporting(ctx, totalPorts)
 
 	s.startUDPWorkers(ctx, jobs)

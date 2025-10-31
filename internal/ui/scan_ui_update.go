@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/lucchesi-sec/portscan/internal/core"
+	"github.com/lucchesi-sec/portscan/internal/ui/commands"
 	"github.com/lucchesi-sec/portscan/pkg/theme"
 )
 
@@ -130,6 +131,8 @@ func (m *ScanUI) handleModalKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
 		return m.handleFilterModalKey(msg)
 	case ModalDetails:
 		return m.handleDetailsModalKey(msg)
+	case ModalCommandPalette:
+		return m.handleCommandPaletteKey(msg)
 	default:
 		return true, true, nil
 	}
@@ -227,6 +230,63 @@ func (m *ScanUI) handleHelpKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
 	return true, true, nil
 }
 
+func (m *ScanUI) handleCommandPaletteKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEnter:
+		if len(m.commandPaletteState.FilteredResults) > 0 && m.commandPaletteState.Cursor >= 0 {
+			// Execute the selected command
+			selected := m.commandPaletteState.FilteredResults[m.commandPaletteState.Cursor]
+			cmd := m.commandPaletteState.CommandRegistry.ExecuteCommand(selected.Command.ID, m)
+
+			// Close the command palette
+			m.modalState.IsActive = false
+			m.modalState.Type = 0 // Reset to default
+			m.modalState.Cursor = 0
+
+			return true, true, cmd
+		}
+	case tea.KeyEsc:
+		// Close the command palette
+		m.modalState.IsActive = false
+		m.modalState.Type = 0
+		m.modalState.Cursor = 0
+		return true, true, nil
+	case tea.KeyUp:
+		if len(m.commandPaletteState.FilteredResults) > 0 {
+			m.commandPaletteState.Cursor = max(0, m.commandPaletteState.Cursor-1)
+		}
+		return true, true, nil
+	case tea.KeyDown:
+		if len(m.commandPaletteState.FilteredResults) > 0 {
+			m.commandPaletteState.Cursor = min(len(m.commandPaletteState.FilteredResults)-1, m.commandPaletteState.Cursor+1)
+		}
+		return true, true, nil
+	default:
+		// Handle text input for search
+		switch msg.String() {
+		case "ctrl+k", "ctrl+\\", "ctrl+]", "ctrl+^", "ctrl+_": // Additional control keys to ignore
+			// These are already handled for opening the palette
+			return true, true, nil
+		default:
+			// Update query and filter results
+			if msg.Type == tea.KeyRunes {
+				m.commandPaletteState.Query += msg.String()
+			} else if msg.Type == tea.KeyBackspace {
+				if len(m.commandPaletteState.Query) > 0 {
+					m.commandPaletteState.Query = m.commandPaletteState.Query[:len(m.commandPaletteState.Query)-1]
+				}
+			}
+
+			// Re-filter commands based on the new query
+			activeCommands := m.commandPaletteState.CommandRegistry.GetActiveCommands(m)
+			m.commandPaletteState.FilteredResults = commands.FuzzySearch(activeCommands, m.commandPaletteState.Query)
+			m.commandPaletteState.Cursor = 0 // Reset cursor to top of results
+			return true, true, nil
+		}
+	}
+	return true, true, nil
+}
+
 // Helper functions
 func (m *ScanUI) openModal(modalType ModalType) {
 	m.modalState.IsActive = true
@@ -297,6 +357,23 @@ func (m *ScanUI) handleMainKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
 			m.statsData = m.computeStats()
 		}
 		return true, true, nil
+	case key.Matches(msg, m.keys.Search):
+		// Open command palette for search functionality
+		m.commandPaletteState.Query = ""
+		m.commandPaletteState.Cursor = 0
+		activeCommands := m.commandPaletteState.CommandRegistry.GetActiveCommands(m)
+		m.commandPaletteState.FilteredResults = commands.FuzzySearch(activeCommands, "")
+		m.openModal(ModalCommandPalette)
+		return true, true, nil
+	case key.Matches(msg, m.keys.CommandPalette):
+		// Open command palette with search functionality
+		m.commandPaletteState.Query = ""
+		m.commandPaletteState.Cursor = 0
+		// If it's a search command, we'll start with "search" command selected
+		activeCommands := m.commandPaletteState.CommandRegistry.GetActiveCommands(m)
+		m.commandPaletteState.FilteredResults = commands.FuzzySearch(activeCommands, "")
+		m.openModal(ModalCommandPalette)
+		return true, true, nil
 	case key.Matches(msg, m.keys.Up):
 		m.table.MoveUp(1)
 		return true, true, nil
@@ -320,17 +397,15 @@ func (m *ScanUI) handleMainKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
 	}
 }
 
-
-
 func (m *ScanUI) handleScanResult(msg scanResultMsg) {
 	m.results.Append(msg.result)
 	m.stats.Add(msg.result)
 	m.updateTable()
 	total, open, closed, filtered := m.stats.Totals()
-	
+
 	// Calculate host metrics
 	hostsScanned := m.calculateHostsScanned()
-	
+
 	// Update progress with host tracking
 	m.progressTrack.Update(total, open, closed, filtered, m.currentRate)
 	m.progressTrack.UpdateHosts(m.calculateTotalHosts(), hostsScanned)
@@ -345,11 +420,11 @@ func (m *ScanUI) handleScanResult(msg scanResultMsg) {
 func (m *ScanUI) calculateHostsScanned() int {
 	hosts := make(map[string]bool)
 	results := m.results.Items()
-	
+
 	for _, result := range results {
 		hosts[result.Host] = true
 	}
-	
+
 	return len(hosts)
 }
 
@@ -381,7 +456,7 @@ func (m *ScanUI) handleScanProgress(msg scanProgressMsg) {
 	// Calculate host metrics
 	hostsScanned := m.calculateHostsScanned()
 	totalHosts := m.calculateTotalHosts()
-	
+
 	m.progressTrack.Update(
 		scanned,
 		open,
@@ -465,7 +540,7 @@ func (m *ScanUI) updateTable() {
 	var rows []table.Row
 	for _, r := range m.displayResults {
 		rowStyle := m.theme.GetRowStyle(string(r.State))
-		
+
 		service := getServiceName(r.Port)
 		banner := r.Banner
 		if len(banner) > BannerMaxDisplayLength {
@@ -493,7 +568,7 @@ func (m *ScanUI) updateTable() {
 
 		rows = append(rows, row)
 	}
-	
+
 	m.table.SetRows(rows)
 }
 

@@ -2,11 +2,11 @@ package commands
 
 import (
 	"context"
+	stdErrors "errors"
 	"fmt"
 	"os"
 	"os/signal"
 	"runtime"
-	"sync"
 	"syscall"
 
 	"github.com/lucchesi-sec/portscan/internal/core"
@@ -72,7 +72,8 @@ func runScan(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	monitorInterrupts(cancel)
+	cleanupInterrupts := monitorInterrupts(cancel)
+	defer cleanupInterrupts()
 
 	protocol := normalizeProtocol(cfg.Protocol)
 	return executeScan(ctx, protocol, resolvedTargets, ports, cfg)
@@ -90,7 +91,7 @@ func runProtocolScan(ctx context.Context, scanner core.PortScanner, hosts []stri
 	totalPorts := len(ports) * len(hosts)
 	metadata := exporter.ScanMetadata{Targets: hosts, TotalPorts: totalPorts, Rate: cfg.Rate}
 
-	return handleScanOutput(cfg, events, totalPorts, metadata)
+	return handleScanOutput(ctx, cfg, events, totalPorts, metadata)
 }
 
 func selectJSONExporter(meta exporter.ScanMetadata) *exporter.JSONExporter {
@@ -104,15 +105,26 @@ func selectJSONExporter(meta exporter.ScanMetadata) *exporter.JSONExporter {
 	}
 }
 
-func streamEvents(events <-chan core.Event, export func(<-chan core.Event), closeFn func() error) error {
-	var wg sync.WaitGroup
-	wg.Add(1)
+func streamEvents(ctx context.Context, events <-chan core.Event, export func(<-chan core.Event), closeFn func() error) error {
+	done := make(chan error, 1)
 	go func() {
-		defer wg.Done()
 		export(events)
+		done <- closeFn()
 	}()
-	wg.Wait()
-	return closeFn()
+
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		err := <-done
+		if err != nil {
+			return err
+		}
+		if stdErrors.Is(ctx.Err(), context.Canceled) {
+			return nil
+		}
+		return ctx.Err()
+	}
 }
 
 func ensureWorkersConfigured(cfg *config.Config) {
@@ -132,13 +144,26 @@ func enforceRateSafety(rate int) error {
 	return nil
 }
 
-func monitorInterrupts(cancel context.CancelFunc) {
+func monitorInterrupts(cancel context.CancelFunc) func() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	stop := make(chan struct{})
+
 	go func() {
-		<-sigChan
-		cancel()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-sigChan:
+				cancel()
+			}
+		}
 	}()
+
+	return func() {
+		signal.Stop(sigChan)
+		close(stop)
+	}
 }
 
 func buildScannerConfig(cfg *config.Config) *core.Config {
@@ -206,14 +231,14 @@ func executeScan(ctx context.Context, protocol string, hosts []string, ports []u
 }
 
 // handleScanOutput routes scan results to the appropriate output handler (TUI, JSON, CSV).
-func handleScanOutput(cfg *config.Config, events <-chan core.Event, totalPorts int, metadata exporter.ScanMetadata) error {
+func handleScanOutput(ctx context.Context, cfg *config.Config, events <-chan core.Event, totalPorts int, metadata exporter.ScanMetadata) error {
 	switch {
 	case viper.GetBool("json") || cfg.Output == "json":
 		exporter := selectJSONExporter(metadata)
-		return streamEvents(events, exporter.Export, exporter.Close)
+		return streamEvents(ctx, events, exporter.Export, exporter.Close)
 	case cfg.Output == "csv":
 		exporter := exporter.NewCSVExporter(os.Stdout)
-		return streamEvents(events, exporter.Export, exporter.Close)
+		return streamEvents(ctx, events, exporter.Export, exporter.Close)
 	default:
 		onlyOpen := viper.GetBool("only_open")
 		tui := ui.NewScanUI(cfg, totalPorts, events, onlyOpen)
@@ -234,7 +259,7 @@ func validateInputs(cfg *config.Config) error {
 			Code:       "INVALID_RATE",
 			Message:    "Invalid rate limit",
 			Details:    err.Error(),
-			Suggestion: "Use a rate between 1 and 50000 pps. Start with 5000-10000 for normal scans.",
+			Suggestion: fmt.Sprintf("Use a rate between 1 and %d pps. Start with 5000-10000 for normal scans.", core.MaxSafeRateLimit),
 		}
 	}
 

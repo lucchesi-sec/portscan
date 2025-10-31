@@ -4,18 +4,16 @@ Welcome to the PortScan documentation. This directory contains comprehensive doc
 
 ## 📚 Documentation Structure
 
-```
-docs/
-├── architecture/          # Architecture documentation
-│   ├── README.md         # Main architecture overview
-│   ├── c4-model/         # C4 architecture diagrams
-│   ├── adrs/             # Architecture Decision Records
-│   ├── diagrams/         # Additional diagrams
-│   └── security/         # Security architecture
-├── api/                  # API documentation (auto-generated)
-├── generated/            # Auto-generated documentation
-└── guides/               # User and developer guides
-```
+The repository currently ships these primary documents:
+
+- `ARCHITECTURE.md` – end-to-end system architecture and design choices
+- `DEVELOPER_GUIDE.md` – local workflows, tooling, and contribution tips
+- `DOCUMENTATION_SUMMARY.md` – status overview and quick index
+- `MAINTENANCE.md` – release and dependency maintenance procedures
+- `SECURITY_SCANNING.md` – how to run static/dynamic security tooling
+- `README.md` – entry point for the documentation folder
+
+Generated artefacts from `scripts/generate-docs.go` are written to `docs/generated/` after running `make generate-docs`.
 
 ## 🏗️ Architecture Documentation
 
@@ -52,32 +50,25 @@ Security considerations and threat model:
 
 ## 🔧 Building Documentation
 
-### Prerequisites
+### Prerequisites (optional helpers)
 ```bash
-# Install required tools
+# Diagram rendering (optional)
 brew install plantuml graphviz
+
+# Mermaid + Markdown linting (optional)
 npm install -g @mermaid-js/mermaid-cli markdownlint-cli
+
+# Additional generators (optional)
 go install github.com/princjef/gomarkdoc/cmd/gomarkdoc@latest
 ```
 
 ### Generate Documentation
 ```bash
-# Generate all documentation
-cd docs/architecture
-make all
-
-# Generate diagrams only
-make diagrams
-
-# Generate code documentation
-go run scripts/generate-docs.go -src . -out docs/generated
-
-# Validate documentation
-make validate
-
-# View documentation statistics
-make stats
+# Generate code documentation snapshot
+make generate-docs
 ```
+
+The optional tooling above can be installed when you need diagram exports or Markdown linting, but it is not required for day-to-day development.
 
 ### Automated Generation
 Documentation is automatically generated on:

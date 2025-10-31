@@ -3,7 +3,6 @@ project_name: portscan
 before:
   hooks:
     - go mod tidy
-    - go generate ./...
 
 builds:
   - id: portscan

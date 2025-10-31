@@ -194,7 +194,7 @@ func TestHandleScanOutput_CSV(t *testing.T) {
 		Rate:       1000,
 	}
 
-	err := handleScanOutput(cfg, events, 1, metadata)
+	err := handleScanOutput(context.Background(), cfg, events, 1, metadata)
 	if err != nil {
 		t.Errorf("handleScanOutput failed: %v", err)
 	}
@@ -219,7 +219,7 @@ func TestHandleScanOutput_JSON(t *testing.T) {
 		Rate:       1000,
 	}
 
-	err := handleScanOutput(cfg, events, 1, metadata)
+	err := handleScanOutput(context.Background(), cfg, events, 1, metadata)
 	if err != nil {
 		t.Errorf("handleScanOutput failed: %v", err)
 	}

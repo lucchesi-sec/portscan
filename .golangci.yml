@@ -1,3 +1,5 @@
+version: 1.56
+
 run:
   timeout: 3m
   issues-exit-code: 1

@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -17,6 +18,7 @@ type UDPScanner struct {
 	serviceProbes map[uint16][]byte
 	customProbes  map[uint16][]byte
 	probeStats    map[uint16]ProbeStats
+	probeMu       sync.RWMutex
 }
 
 // NewUDPScanner creates a new UDP scanner instance.
@@ -55,7 +57,15 @@ func (s *UDPScanner) udpWorker(ctx context.Context, jobs <-chan scanJob) {
 				case <-s.rateTicker.C:
 					if s.config.UDPJitterMaxMs > 0 {
 						jitter := time.Duration(rng.Intn(s.config.UDPJitterMaxMs)) * time.Millisecond
-						time.Sleep(jitter)
+						if jitter > 0 {
+							timer := time.NewTimer(jitter)
+							select {
+							case <-ctx.Done():
+								timer.Stop()
+								return
+							case <-timer.C:
+							}
+						}
 					}
 				}
 			}

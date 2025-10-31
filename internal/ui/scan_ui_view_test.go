@@ -142,7 +142,7 @@ func TestScanUI_RenderFilterModal(t *testing.T) {
 // TestScanUI_RenderDashboardView tests dashboard view rendering
 func TestScanUI_RenderDashboardView(t *testing.T) {
 	results := make(chan core.Event, 10)
-	
+
 	// Add some sample results
 	results <- core.NewResultEvent(core.ResultEvent{
 		Host:     "localhost",
@@ -180,7 +180,7 @@ func TestScanUI_RenderDashboardView(t *testing.T) {
 // TestScanUI_RenderStatsPanel tests stats panel rendering
 func TestScanUI_RenderStatsPanel(t *testing.T) {
 	results := make(chan core.Event, 10)
-	
+
 	// Add results
 	results <- core.NewResultEvent(core.ResultEvent{
 		Host:     "localhost",
@@ -202,7 +202,7 @@ func TestScanUI_RenderStatsPanel(t *testing.T) {
 	ui := NewScanUI(cfg, 100, results, false)
 	ui.width = 80
 	ui.height = 24
-	
+
 	// Trigger stats computation
 	ui.statsData = ui.computeStats()
 
@@ -228,7 +228,7 @@ func TestScanUI_RenderStatsPanel(t *testing.T) {
 // TestScanUI_RenderMiniBarChart tests bar chart rendering
 func TestScanUI_RenderMiniBarChart(t *testing.T) {
 	results := make(chan core.Event, 10)
-	
+
 	// Add mixed results
 	results <- core.NewResultEvent(core.ResultEvent{
 		Host:  "localhost",
@@ -280,10 +280,10 @@ func TestScanUI_RenderBreadcrumb(t *testing.T) {
 	ui := NewScanUI(cfg, 100, results, false)
 
 	tests := []struct {
-		name      string
-		scanning  bool
-		paused    bool
-		expected  string
+		name     string
+		scanning bool
+		paused   bool
+		expected string
 	}{
 		{"scanning", true, false, "Scanning"},
 		{"paused", true, true, "Paused"},
@@ -409,7 +409,7 @@ func TestScanUI_RenderSortFilterIndicators(t *testing.T) {
 			name: "no indicators",
 			setupUI: func(ui *ScanUI) {
 				ui.sortState = NewSortState()
-				ui.sortState.IsActive = false  // Explicitly disable sort
+				ui.sortState.IsActive = false // Explicitly disable sort
 				ui.filterState = NewFilterState()
 			},
 			expectNonEmpty: false,

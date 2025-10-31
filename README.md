@@ -7,7 +7,7 @@
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=for-the-badge&logo=go)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/lucchesi-sec/portscan?style=for-the-badge)](https://github.com/lucchesi-sec/portscan/releases)
-[![Build Status](https://img.shields.io/github/workflow/status/lucchesi-sec/portscan/CI?style=for-the-badge)](https://github.com/lucchesi-sec/portscan/actions)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/lucchesi-sec/portscan/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/lucchesi-sec/portscan/actions/workflows/ci.yml)
 
 ![Port Scanner TUI Demo](demo/recordings/tui-demo.gif)
 
@@ -94,7 +94,7 @@ The TUI provides real-time visualization of scan progress:
 **Navigation:**
 - `↑/↓` or `j/k` - Navigate results
 - `g/G` - Jump to top/bottom
-- `/` - Search results
+- `Ctrl+K` or `/` - Open command palette
 - `q` - Quit application
 
 ## 📋 Command Line Options
