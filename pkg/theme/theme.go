@@ -111,9 +111,9 @@ func (t Theme) WarningStyle() lipgloss.Style {
 
 // StateColors defines colors for different port states
 type StateColors struct {
-	Open      lipgloss.Color
-	Closed    lipgloss.Color
-	Filtered  lipgloss.Color
+	Open     lipgloss.Color
+	Closed   lipgloss.Color
+	Filtered lipgloss.Color
 }
 
 // GetStateColors returns the color scheme for port states based on the theme
@@ -123,6 +123,46 @@ func (t Theme) GetStateColors() StateColors {
 		Closed:   lipgloss.Color("#FF0000"), // Red for closed ports
 		Filtered: lipgloss.Color("#FFA500"), // Orange for filtered ports
 	}
+}
+
+// TableHeaderStyle styles table headers.
+func (t Theme) TableHeaderStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(t.Primary).
+		Padding(0, 1)
+}
+
+// TableCellStyle styles table cells.
+func (t Theme) TableCellStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Foreground(t.Foreground).
+		Padding(0, 1)
+}
+
+// TableSelectedStyle styles the selected row in the table.
+func (t Theme) TableSelectedStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Foreground(t.Background).
+		Background(t.Primary).
+		Bold(true).
+		Padding(0, 1)
+}
+
+// TableContainerStyle styles the outer container of the table.
+func (t Theme) TableContainerStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(t.Muted).
+		Padding(0, 1)
+}
+
+// DashboardPanelStyle styles the dashboard side panel container.
+func (t Theme) DashboardPanelStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(t.Primary).
+		Padding(1)
 }
 
 // ModalStyle returns the style for modal dialogs (padding parameter to avoid import cycle)
@@ -145,7 +185,7 @@ func (t Theme) ModalOverlayStyle() lipgloss.Style {
 // GetRowStyle returns the appropriate styling for a table row based on port state
 func (t Theme) GetRowStyle(state string) lipgloss.Style {
 	stateColors := t.GetStateColors()
-	
+
 	switch state {
 	case "open":
 		return lipgloss.NewStyle().

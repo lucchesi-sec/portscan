@@ -7,6 +7,9 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/lucchesi-sec/portscan/internal/core"
+	"github.com/mattn/go-runewidth"
+	"github.com/muesli/reflow/ansi"
+	"github.com/muesli/reflow/truncate"
 )
 
 // View renders the UI
@@ -259,13 +262,8 @@ Navigation:
   PgUp/PgDn  Page up/down
   g/G        Jump to top/bottom
 
-Command Palette:
-  Ctrl+K     Open command palette
-  /          Open command palette for search
-
 Filtering & Sorting:
   s          Sort options (modal)
-  f          Filter options (modal)
   r          Reset filters
   o          Toggle open-only
 
@@ -283,64 +281,121 @@ View Controls:
 
 // renderModalOverlay renders the semi-transparent background with modal on top
 func (m *ScanUI) renderModalOverlay() string {
-	// Render dimmed main view in background
 	mainView := m.renderMain()
 	overlayStyle := m.theme.ModalOverlayStyle()
 	dimmedBackground := overlayStyle.Render(mainView)
 
-	// Calculate modal dimensions
-	modalWidth := max(ModalMinWidth, int(float64(m.width)*ModalWidthPercent))
-	modalHeight := max(ModalMinHeight, int(float64(m.height)*ModalHeightPercent))
+	availableWidth := max(1, m.width)
+	availableHeight := max(1, m.height)
 
-	// Calculate modal position (centered)
-	modalX := (m.width - modalWidth) / 2
-	modalY := (m.height - modalHeight) / 2
+	modalWidth := max(ModalMinWidth, int(float64(availableWidth)*ModalWidthPercent))
+	modalHeight := max(ModalMinHeight, int(float64(availableHeight)*ModalHeightPercent))
+	modalWidth = min(modalWidth, availableWidth)
+	modalHeight = min(modalHeight, availableHeight)
 
-	// Store modal position in state
-	m.modalState.Position.X = modalX
-	m.modalState.Position.Y = modalY
-	m.modalState.Position.Width = modalWidth
-	m.modalState.Position.Height = modalHeight
-
-	// Render the appropriate modal content
 	var modalContent string
 	switch m.modalState.Type {
 	case ModalSort:
 		modalContent = m.renderSortModal()
-	case ModalFilter:
-		modalContent = m.renderFilterModal()
 	case ModalDetails:
 		modalContent = m.renderDetailsModal()
-	case ModalCommandPalette:
-		modalContent = m.renderCommandPaletteModal()
 	default:
 		modalContent = ""
 	}
 
-	// Style the modal with dimensions
 	modalStyle := m.theme.ModalStyle(ModalBorderPadding).
 		Width(modalWidth).
 		Height(modalHeight)
-	styledModal := modalStyle.Render(modalContent)
-
-	// Simple overlay approach - center the modal
-	lines := strings.Split(dimmedBackground, "\n")
-
-	// Add vertical offset
-	for i := 0; i < modalY && i < len(lines); i++ {
-		lines[i] = lipgloss.NewStyle().Width(m.width).Render(lines[i])
+	styledModal := strings.TrimRight(modalStyle.Render(modalContent), "\n")
+	modalLines := strings.Split(styledModal, "\n")
+	if len(modalLines) == 0 {
+		modalLines = []string{""}
 	}
 
-	// Insert the modal
-	if modalY < len(lines) {
-		modalLine := lipgloss.NewStyle().
-			Width(m.width).
-			Align(lipgloss.Center).
-			Render(styledModal)
-		lines[modalY] = modalLine
+	actualModalHeight := len(modalLines)
+	if actualModalHeight > availableHeight {
+		modalLines = modalLines[:availableHeight]
+		actualModalHeight = availableHeight
+	}
+
+	modalX := max((availableWidth-modalWidth)/2, 0)
+	modalY := max((availableHeight-actualModalHeight)/2, 0)
+
+	m.modalState.Position.X = modalX
+	m.modalState.Position.Y = modalY
+	m.modalState.Position.Width = modalWidth
+	m.modalState.Position.Height = actualModalHeight
+
+	lines := strings.Split(dimmedBackground, "\n")
+	for len(lines) < availableHeight {
+		lines = append(lines, overlayStyle.Render(""))
+	}
+
+	for i := range lines {
+		lines[i] = padLine(lines[i], availableWidth)
+	}
+
+	for i, modalLine := range modalLines {
+		row := modalY + i
+		if row >= len(lines) {
+			lines = append(lines, padLine("", availableWidth))
+		}
+
+		left := truncate.String(lines[row], uint(modalX))
+		body := lipgloss.NewStyle().Width(modalWidth).Render(modalLine)
+		right := sliceFromColumn(lines[row], modalX+modalWidth)
+
+		lines[row] = left + body + right
+	}
+
+	if len(lines) > availableHeight {
+		lines = lines[:availableHeight]
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func padLine(line string, width int) string {
+	diff := width - lipgloss.Width(line)
+	if diff <= 0 {
+		return line
+	}
+	return line + strings.Repeat(" ", diff)
+}
+
+func sliceFromColumn(line string, x int) string {
+	if x <= 0 {
+		return line
+	}
+
+	var (
+		ansiSequences strings.Builder
+		posX          int
+		inANSI        bool
+	)
+
+	for i, r := range line {
+		if r == ansi.Marker {
+			ansiSequences.WriteRune(r)
+			inANSI = true
+			continue
+		}
+
+		if inANSI {
+			ansiSequences.WriteRune(r)
+			if ansi.IsTerminator(r) {
+				inANSI = false
+			}
+			continue
+		}
+
+		posX += runewidth.RuneWidth(r)
+		if posX >= x {
+			return ansiSequences.String() + line[i:]
+		}
+	}
+
+	return ""
 }
 
 // renderSortModal renders the sort options modal
@@ -381,62 +436,6 @@ func (m *ScanUI) renderSortModal() string {
 		Foreground(m.theme.Secondary).
 		Render("Current: " + m.sortState.GetModeString())
 	b.WriteString(current + "\n")
-
-	// Instructions
-	instructions := lipgloss.NewStyle().
-		Foreground(m.theme.Muted).
-		Render("↑/↓: Navigate • Enter: Select • ESC: Cancel")
-	b.WriteString("\n" + instructions)
-
-	return b.String()
-}
-
-// renderFilterModal renders the filter options modal
-func (m *ScanUI) renderFilterModal() string {
-	var b strings.Builder
-
-	// Title
-	title := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(m.theme.Primary).
-		Width(30).
-		Render("🔍 FILTER OPTIONS")
-	b.WriteString(title + "\n\n")
-
-	// Options
-	options := []string{
-		"1. Show All States",
-		"2. Show Open Ports Only",
-		"3. Show Closed Ports Only",
-		"4. Show Filtered Ports Only",
-	}
-
-	for i, option := range options {
-		style := lipgloss.NewStyle()
-		if i == m.modalState.Cursor {
-			style = style.Background(m.theme.Primary).Foreground(m.theme.Background)
-		}
-		b.WriteString(style.Render(option) + "\n")
-	}
-
-	// Current selection
-	b.WriteString("\n")
-	var current string
-	switch m.filterState.StateFilter {
-	case StateFilterAll:
-		current = "All States"
-	case StateFilterOpen:
-		current = "Open Only"
-	case StateFilterClosed:
-		current = "Closed Only"
-	case StateFilterFiltered:
-		current = "Filtered Only"
-	}
-
-	currentText := lipgloss.NewStyle().
-		Foreground(m.theme.Secondary).
-		Render("Current: " + current)
-	b.WriteString(currentText + "\n")
 
 	// Instructions
 	instructions := lipgloss.NewStyle().
@@ -583,91 +582,6 @@ func getMaxModalContentHeight() int {
 const (
 	maxModalContentHeight = 20
 )
-
-// renderCommandPaletteModal renders the command palette modal
-func (m *ScanUI) renderCommandPaletteModal() string {
-	var b strings.Builder
-
-	// Title
-	title := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(m.theme.Primary).
-		Width(50).
-		Render("⌨️  COMMAND PALETTE")
-	b.WriteString(title + "\n\n")
-
-	// Search input - show current query
-	inputPrompt := lipgloss.NewStyle().
-		Foreground(m.theme.Secondary).
-		Render("> " + m.commandPaletteState.Query)
-	b.WriteString(inputPrompt + "\n\n")
-
-	// Show filtered results
-	if len(m.commandPaletteState.FilteredResults) == 0 {
-		noResults := lipgloss.NewStyle().
-			Foreground(m.theme.Muted).
-			Render("No matching commands found")
-		b.WriteString(noResults)
-	} else {
-		// Display available commands with highlighting
-		maxDisplay := 10 // Show at most 10 commands
-		for i, result := range m.commandPaletteState.FilteredResults {
-			if i >= maxDisplay {
-				break
-			}
-
-			isSelected := i == m.commandPaletteState.Cursor
-			cmd := result.Command
-
-			// Command name
-			nameStyle := lipgloss.NewStyle()
-			if isSelected {
-				nameStyle = nameStyle.Background(m.theme.Primary).Foreground(m.theme.Background)
-			} else {
-				nameStyle = nameStyle.Foreground(m.theme.Foreground)
-			}
-
-			// Format command with category prefix
-			category := string(cmd.Category)
-			commandLine := fmt.Sprintf("[%s] %s", category, cmd.Name)
-
-			// For highlighting matches in the search results, we'll use a simple approach
-			// since highlighting individual characters requires more complex lipgloss handling
-			b.WriteString(nameStyle.Render(commandLine) + "\n")
-
-			// Description on next line, indented
-			descStyle := lipgloss.NewStyle()
-			if isSelected {
-				descStyle = descStyle.Foreground(m.theme.Background) // Dimmed when selected
-			} else {
-				descStyle = descStyle.Foreground(m.theme.Muted)
-			}
-			b.WriteString(descStyle.Render("    "+cmd.Description) + "\n")
-
-			// Add key bindings if available
-			if len(cmd.Keys) > 0 {
-				keys := strings.Join(cmd.Keys, ", ")
-				keysStyle := lipgloss.NewStyle().Foreground(m.theme.Secondary)
-				b.WriteString(keysStyle.Render("    ("+keys+")") + "\n")
-			}
-
-			b.WriteString("\n") // Add space between commands
-		}
-	}
-
-	// Show total count
-	totalText := fmt.Sprintf("%d commands available", len(m.commandPaletteState.CommandRegistry.GetActiveCommands(m)))
-	totalStyle := lipgloss.NewStyle().Foreground(m.theme.Muted)
-	b.WriteString(totalStyle.Render(totalText) + "\n")
-
-	// Instructions
-	instructions := lipgloss.NewStyle().
-		Foreground(m.theme.Muted).
-		Render("↑/↓: Navigate • Enter: Execute • ESC: Close")
-	b.WriteString("\n" + instructions)
-
-	return b.String()
-}
 
 // renderDashboardView renders the split view dashboard
 func (m *ScanUI) renderDashboardView() string {

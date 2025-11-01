@@ -13,26 +13,30 @@ const (
 	// TableDefaultHeight is the default height of the results table
 	TableDefaultHeight = 15
 
-	// ColumnWidthHost is the width of the host column
-	ColumnWidthHost = 20
+	// MinTableHeight prevents the table from collapsing on very short viewports
+	MinTableHeight = 5
+)
 
-	// ColumnWidthPort is the width of the port column
-	ColumnWidthPort = 8
+// Table column weights in percentage points. They must sum to 100.
+const (
+	ColumnWeightHost     = 24
+	ColumnWeightPort     = 8
+	ColumnWeightProtocol = 8
+	ColumnWeightState    = 10
+	ColumnWeightService  = 18
+	ColumnWeightBanner   = 24
+	ColumnWeightLatency  = 8
+)
 
-	// ColumnWidthProtocol is the width of the protocol column
-	ColumnWidthProtocol = 8
-
-	// ColumnWidthState is the width of the state column
-	ColumnWidthState = 10
-
-	// ColumnWidthService is the width of the service column
-	ColumnWidthService = 15
-
-	// ColumnWidthBanner is the width of the banner column
-	ColumnWidthBanner = 35
-
-	// ColumnWidthLatency is the width of the latency column
-	ColumnWidthLatency = 10
+// Table column minimum widths to keep data legible on narrow terminals.
+const (
+	ColumnMinWidthHost     = 16
+	ColumnMinWidthPort     = 6
+	ColumnMinWidthProtocol = 6
+	ColumnMinWidthState    = 8
+	ColumnMinWidthService  = 12
+	ColumnMinWidthBanner   = 12
+	ColumnMinWidthLatency  = 6
 )
 
 // Banner truncation
@@ -65,6 +69,13 @@ const (
 	StatusBarLabelWidth = 10
 )
 
+// Dashboard panel ratios and spacing.
+const (
+	DashboardLeftWidthPercent  = 0.65
+	DashboardRightWidthPercent = 0.35
+	DashboardGutterWidth       = 3
+)
+
 // Modal dialog dimensions and positioning
 const (
 	// ModalWidthPercent is the modal width as a percentage of screen width
@@ -81,4 +92,15 @@ const (
 
 	// ModalMinHeight is the minimum modal height in characters
 	ModalMinHeight = 10
+)
+
+// Fixed-height contributions used to compute the table viewport height.
+const (
+	HeightBreadcrumb = 1
+	HeightHeader     = 1
+	HeightProgress   = 1
+	HeightStatus     = 2
+	HeightIndicators = 1
+	HeightSpacing    = 1
+	HeightFooter     = 2
 )

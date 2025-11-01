@@ -12,8 +12,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/lucchesi-sec/portscan/internal/core"
-	"github.com/lucchesi-sec/portscan/internal/ui/commands"
 	"github.com/lucchesi-sec/portscan/pkg/theme"
+	"github.com/muesli/reflow/truncate"
 )
 
 // Update handles messages
@@ -74,8 +74,7 @@ func (m *ScanUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *ScanUI) handleWindowSize(msg tea.WindowSizeMsg) {
 	m.width = msg.Width
 	m.height = msg.Height
-	m.table.SetHeight(m.height - 12)
-	m.table.SetWidth(m.width)
+	m.applyTableGeometry()
 }
 
 func (m *ScanUI) handleKeyMsg(msg tea.KeyMsg) (handled bool, skipTable bool, cmd tea.Cmd) {
@@ -113,11 +112,6 @@ func (m *ScanUI) handleKeyMsg(msg tea.KeyMsg) (handled bool, skipTable bool, cmd
 		m.openModal(ModalSort)
 		m.viewState = UIViewMain
 		return true, true, nil
-	case UIViewFilterModal:
-		// Legacy support - convert to modal
-		m.openModal(ModalFilter)
-		m.viewState = UIViewMain
-		return true, true, nil
 	default:
 		return false, false, nil
 	}
@@ -127,12 +121,8 @@ func (m *ScanUI) handleModalKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
 	switch m.modalState.Type {
 	case ModalSort:
 		return m.handleSortModalKey(msg)
-	case ModalFilter:
-		return m.handleFilterModalKey(msg)
 	case ModalDetails:
 		return m.handleDetailsModalKey(msg)
-	case ModalCommandPalette:
-		return m.handleCommandPaletteKey(msg)
 	default:
 		return true, true, nil
 	}
@@ -174,34 +164,6 @@ func (m *ScanUI) handleSortModalKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
 	}
 }
 
-func (m *ScanUI) handleFilterModalKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
-	switch msg.String() {
-	case "up", "k":
-		m.modalState.Cursor = max(0, m.modalState.Cursor-1)
-		return true, true, nil
-	case "down", "j":
-		m.modalState.Cursor = min(3, m.modalState.Cursor+1)
-		return true, true, nil
-	case "enter":
-		switch m.modalState.Cursor {
-		case 0:
-			m.filterState.SetStateFilter(StateFilterAll)
-		case 1:
-			m.filterState.SetStateFilter(StateFilterOpen)
-		case 2:
-			m.filterState.SetStateFilter(StateFilterClosed)
-		case 3:
-			m.filterState.SetStateFilter(StateFilterFiltered)
-		}
-		m.updateTable()
-		m.modalState.IsActive = false
-		m.modalState.Cursor = 0
-		return true, true, nil
-	default:
-		return true, true, nil
-	}
-}
-
 func (m *ScanUI) handleDetailsModalKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
 	switch msg.String() {
 	case "up", "k":
@@ -226,63 +188,6 @@ func (m *ScanUI) handleHelpKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
 	if key.Matches(msg, m.keys.Quit) || key.Matches(msg, m.keys.Help) {
 		m.showHelp = false
 		m.viewState = UIViewMain
-	}
-	return true, true, nil
-}
-
-func (m *ScanUI) handleCommandPaletteKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEnter:
-		if len(m.commandPaletteState.FilteredResults) > 0 && m.commandPaletteState.Cursor >= 0 {
-			// Execute the selected command
-			selected := m.commandPaletteState.FilteredResults[m.commandPaletteState.Cursor]
-			cmd := m.commandPaletteState.CommandRegistry.ExecuteCommand(selected.Command.ID, m)
-
-			// Close the command palette
-			m.modalState.IsActive = false
-			m.modalState.Type = 0 // Reset to default
-			m.modalState.Cursor = 0
-
-			return true, true, cmd
-		}
-	case tea.KeyEsc:
-		// Close the command palette
-		m.modalState.IsActive = false
-		m.modalState.Type = 0
-		m.modalState.Cursor = 0
-		return true, true, nil
-	case tea.KeyUp:
-		if len(m.commandPaletteState.FilteredResults) > 0 {
-			m.commandPaletteState.Cursor = max(0, m.commandPaletteState.Cursor-1)
-		}
-		return true, true, nil
-	case tea.KeyDown:
-		if len(m.commandPaletteState.FilteredResults) > 0 {
-			m.commandPaletteState.Cursor = min(len(m.commandPaletteState.FilteredResults)-1, m.commandPaletteState.Cursor+1)
-		}
-		return true, true, nil
-	default:
-		// Handle text input for search
-		switch msg.String() {
-		case "ctrl+k", "ctrl+\\", "ctrl+]", "ctrl+^", "ctrl+_": // Additional control keys to ignore
-			// These are already handled for opening the palette
-			return true, true, nil
-		default:
-			// Update query and filter results
-			if msg.Type == tea.KeyRunes {
-				m.commandPaletteState.Query += msg.String()
-			} else if msg.Type == tea.KeyBackspace {
-				if len(m.commandPaletteState.Query) > 0 {
-					m.commandPaletteState.Query = m.commandPaletteState.Query[:len(m.commandPaletteState.Query)-1]
-				}
-			}
-
-			// Re-filter commands based on the new query
-			activeCommands := m.commandPaletteState.CommandRegistry.GetActiveCommands(m)
-			m.commandPaletteState.FilteredResults = commands.FuzzySearch(activeCommands, m.commandPaletteState.Query)
-			m.commandPaletteState.Cursor = 0 // Reset cursor to top of results
-			return true, true, nil
-		}
 	}
 	return true, true, nil
 }
@@ -329,9 +234,6 @@ func (m *ScanUI) handleMainKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
 	case key.Matches(msg, m.keys.Sort):
 		m.openModal(ModalSort)
 		return true, true, nil
-	case key.Matches(msg, m.keys.Filter):
-		m.openModal(ModalFilter)
-		return true, true, nil
 	case key.Matches(msg, m.keys.Enter):
 		if len(m.displayResults) > 0 {
 			m.openModal(ModalDetails)
@@ -352,27 +254,11 @@ func (m *ScanUI) handleMainKey(msg tea.KeyMsg) (bool, bool, tea.Cmd) {
 		return true, true, nil
 	case key.Matches(msg, m.keys.ToggleDashboard):
 		m.showDashboard = !m.showDashboard
+		m.applyTableGeometry()
 		// Recompute stats when showing dashboard
 		if m.showDashboard {
 			m.statsData = m.computeStats()
 		}
-		return true, true, nil
-	case key.Matches(msg, m.keys.Search):
-		// Open command palette for search functionality
-		m.commandPaletteState.Query = ""
-		m.commandPaletteState.Cursor = 0
-		activeCommands := m.commandPaletteState.CommandRegistry.GetActiveCommands(m)
-		m.commandPaletteState.FilteredResults = commands.FuzzySearch(activeCommands, "")
-		m.openModal(ModalCommandPalette)
-		return true, true, nil
-	case key.Matches(msg, m.keys.CommandPalette):
-		// Open command palette with search functionality
-		m.commandPaletteState.Query = ""
-		m.commandPaletteState.Cursor = 0
-		// If it's a search command, we'll start with "search" command selected
-		activeCommands := m.commandPaletteState.CommandRegistry.GetActiveCommands(m)
-		m.commandPaletteState.FilteredResults = commands.FuzzySearch(activeCommands, "")
-		m.openModal(ModalCommandPalette)
 		return true, true, nil
 	case key.Matches(msg, m.keys.Up):
 		m.table.MoveUp(1)
@@ -534,8 +420,20 @@ func (m *ScanUI) updateTable() {
 	baseResults := m.results.Items()
 	filtered := m.filterState.ApplyFilters(baseResults)
 	m.displayResults = m.sortState.ApplySort(filtered)
+	m.applyTableGeometry()
 
 	stateColors := m.theme.GetStateColors()
+	columns := m.table.Columns()
+	if len(columns) != len(defaultColumnSpecs) {
+		columns = calculateColumnWidths(m.tableViewportWidth())
+	}
+
+	widthFor := func(idx int) int {
+		if idx < len(columns) {
+			return columns[idx].Width
+		}
+		return 0
+	}
 
 	var rows []table.Row
 	for _, r := range m.displayResults {
@@ -543,10 +441,6 @@ func (m *ScanUI) updateTable() {
 
 		service := getServiceName(r.Port)
 		banner := r.Banner
-		if len(banner) > BannerMaxDisplayLength {
-			banner = banner[:BannerTruncateLength] + "..."
-		}
-
 		stateDisplay := m.getRowStateDisplay(r, stateColors)
 
 		protocol := r.Protocol
@@ -555,21 +449,48 @@ func (m *ScanUI) updateTable() {
 		}
 		protocol = strings.ToUpper(protocol)
 
-		// Apply row style to each cell content
+		hostCell := rowStyle.Render(truncateToWidth(r.Host, widthFor(0)))
+		portCell := rowStyle.Render(truncateToWidth(fmt.Sprintf("%d", r.Port), widthFor(1)))
+		protocolCell := rowStyle.Render(truncateToWidth(protocol, widthFor(2)))
+		stateCell := truncateStyled(stateDisplay, widthFor(3))
+		serviceCell := rowStyle.Render(truncateToWidth(service, widthFor(4)))
+		bannerCell := rowStyle.Render(truncateToWidth(banner, widthFor(5)))
+		latencyCell := rowStyle.Render(truncateToWidth(fmt.Sprintf("%dms", r.Duration.Milliseconds()), widthFor(6)))
+
 		row := table.Row{
-			rowStyle.Render(r.Host),
-			rowStyle.Render(fmt.Sprintf("%d", r.Port)),
-			rowStyle.Render(protocol),
-			stateDisplay, // Keep stateDisplay as it already has coloring
-			rowStyle.Render(service),
-			rowStyle.Render(banner),
-			rowStyle.Render(fmt.Sprintf("%dms", r.Duration.Milliseconds())),
+			hostCell,
+			portCell,
+			protocolCell,
+			stateCell,
+			serviceCell,
+			bannerCell,
+			latencyCell,
 		}
 
 		rows = append(rows, row)
 	}
 
 	m.table.SetRows(rows)
+}
+
+func truncateToWidth(content string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if lipgloss.Width(content) <= width {
+		return content
+	}
+	return truncate.StringWithTail(content, uint(width), "…")
+}
+
+func truncateStyled(content string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if lipgloss.Width(content) <= width {
+		return content
+	}
+	return truncate.StringWithTail(content, uint(width), "…")
 }
 
 func (m *ScanUI) getRowStateDisplay(result core.ResultEvent, colors theme.StateColors) string {

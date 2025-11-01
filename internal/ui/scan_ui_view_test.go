@@ -107,35 +107,82 @@ func TestScanUI_RenderSortModal(t *testing.T) {
 	}
 }
 
-// TestScanUI_RenderFilterModal tests filter modal rendering
-func TestScanUI_RenderFilterModal(t *testing.T) {
+func TestRenderModalOverlayShowsModalTopBorder(t *testing.T) {
 	results := make(chan core.Event, 10)
 	close(results)
 
 	cfg := &config.Config{}
 	ui := NewScanUI(cfg, 100, results, false)
+	ui.width = 100
+	ui.height = 40
+	ui.applyTableGeometry()
 	ui.modalState.IsActive = true
-	ui.modalState.Type = ModalFilter
+	ui.modalState.Type = ModalSort
 
-	modal := ui.renderFilterModal()
+	overlay := ui.renderModalOverlay()
 
-	if modal == "" {
-		t.Error("renderFilterModal should not return empty string")
+	if !strings.Contains(overlay, "SORT OPTIONS") {
+		t.Fatal("expected overlay to include sort modal content")
 	}
 
-	// Check for filter options
-	expectedOptions := []string{
-		"FILTER OPTIONS",
-		"Show All",
-		"Open",
-		"Closed",
-		"Filtered",
-	}
-
-	for _, option := range expectedOptions {
-		if !strings.Contains(modal, option) {
-			t.Errorf("filter modal should contain %q", option)
+	lines := strings.Split(overlay, "\n")
+	top := -1
+	bottom := -1
+	for i, line := range lines {
+		if strings.Contains(line, "╭") {
+			top = i
+			break
 		}
+	}
+	for i := len(lines) - 1; i >= 0; i-- {
+		if strings.Contains(lines[i], "╰") {
+			bottom = i
+			break
+		}
+	}
+
+	if top == -1 || bottom == -1 {
+		t.Fatalf("expected modal borders to be visible (top=%d bottom=%d)", top, bottom)
+	}
+
+	if top < ui.modalState.Position.Y {
+		t.Fatalf("expected modal top to be at or below recorded Y (%d), got %d", ui.modalState.Position.Y, top)
+	}
+
+	gotHeight := bottom - top + 1
+	if gotHeight < ui.modalState.Position.Height {
+		t.Fatalf("modal height truncated: got %d, expected at least %d", gotHeight, ui.modalState.Position.Height)
+	}
+}
+
+func TestRenderModalOverlayClampsToViewport(t *testing.T) {
+	results := make(chan core.Event, 10)
+	close(results)
+
+	cfg := &config.Config{}
+	ui := NewScanUI(cfg, 100, results, false)
+	ui.width = 50
+	ui.height = 8
+	ui.applyTableGeometry()
+	ui.modalState.IsActive = true
+	ui.modalState.Type = ModalSort
+
+	overlay := ui.renderModalOverlay()
+
+	if ui.modalState.Position.Height != ui.height {
+		t.Fatalf("expected modal height to clamp to viewport height %d, got %d", ui.height, ui.modalState.Position.Height)
+	}
+
+	lines := strings.Split(overlay, "\n")
+	top := -1
+	for i, line := range lines {
+		if strings.Contains(line, "╭") {
+			top = i
+			break
+		}
+	}
+	if top == -1 {
+		t.Fatal("expected modal top border to be visible in constrained viewport")
 	}
 }
 
@@ -489,17 +536,6 @@ func TestScanUI_ViewStateTransitions(t *testing.T) {
 				ui.modalState.Type = ModalSort
 				modalView := ui.View()
 				return strings.Contains(modalView, "SORT OPTIONS")
-			},
-		},
-		{
-			name:      "filter modal",
-			viewState: UIViewMain,
-			checkFunc: func(v string) bool {
-				// Activate modal and check for overlay
-				ui.modalState.IsActive = true
-				ui.modalState.Type = ModalFilter
-				modalView := ui.View()
-				return strings.Contains(modalView, "FILTER OPTIONS")
 			},
 		},
 	}

@@ -74,7 +74,7 @@ portscan scan 192.168.1.1 --protocol both --profile gateway
 The TUI provides real-time visualization of scan progress:
 
 ```
-┌─ Port Scanner ───────────────────────────────────────────────────────────-──┐
+┌─ Port Scanner ───────────────────────────────────────────────────────────────┐
 │ Targets: 192.168.1.0/24 (1024 ports)       Rate: 7500 pps                  │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ Progress: ████████████████████░░░░  82% (840/1024)   ETA: 00:23             │
@@ -94,7 +94,6 @@ The TUI provides real-time visualization of scan progress:
 **Navigation:**
 - `↑/↓` or `j/k` - Navigate results
 - `g/G` - Jump to top/bottom
-- `Ctrl+K` or `/` - Open command palette
 - `q` - Quit application
 
 ## 📋 Command Line Options
@@ -117,6 +116,8 @@ Flags:
   -s, --stdin            Read whitespace/newline separated targets from stdin
       --ui.theme string  UI theme: default, dracula, monokai (default "default")
       --config string    Config file path (default "~/.portscan.yaml")
+```
+
 ## 🔧 Configuration
 
 Create `~/.portscan.yaml` for persistent settings:
